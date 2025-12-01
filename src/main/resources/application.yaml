@@ -1,0 +1,17 @@
+ktor:
+  application:
+    modules:
+      - net.kazugmx.ApplicationKt.module
+  deployment:
+    port: 8080
+jwt:
+  domain: "https://jwt-provider-domain/"
+  audience: "jwt-audience"
+  realm: "narubox-bot"
+  issuer: "narubox-auth"
+  secret: "7f1b918813641ba4158d853668eb1f660a4e039bb368356a7a5b31d2256b1ae6"
+db:
+  url: "jdbc:sqlite:data/bot_data.db"
+youtube:
+  apikey: "${APIKEY:invalidKey}"
+  callbackOrigin: "${CALLBACK_ORIGIN:invalidOrigin}"
