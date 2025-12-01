@@ -130,9 +130,14 @@ class BotService(
             it[BotRegTable.ownerID] = userID
             it[BotRegTable.mentionRoleID] = request.mentionRoleID
         }[BotRegTable.id].value.toString()
+
+        val mentionIDPlacer = if (request.mentionRoleID.contains("ignore:")){
+            request.mentionRoleID.removePrefix("ignore:")
+        } else "<@&${request.mentionRoleID}>"
+
         client.post(request.wsUrl) {
             contentType(ContentType.Application.Json)
-            setBody(mapOf("content" to "Hello world, <@&${request.mentionRoleID}> !"))
+            setBody(mapOf("content" to "Hello world, $mentionIDPlacer !"))
         }
         return@dbQuery BotRegisterRes(true, botID)
     }
@@ -219,6 +224,16 @@ class BotService(
         return true
     }
 
+    suspend fun deleteChannel(userID:Int,botID:String,channelID:String) = dbQuery {
+        val isAvailable = BotRegTable.select(BotRegTable.ownerID).where {
+            (BotRegTable.id eq UUID.fromString(botID)) and (BotRegTable.ownerID eq userID)
+        }.singleOrNull()
+        if (isAvailable == null) return@dbQuery false
+        ChannelRegTable.deleteWhere {
+            (ChannelRegTable.botID eq UUID.fromString(botID)) and (ChannelRegTable.channelID eq channelID)
+        }
+    }
+
     private suspend fun youtubeVideoQuery(videoID: String): YtResponse.QueryData? {
         val res = client.get("https://www.googleapis.com/youtube/v3/videos") {
             url {
@@ -263,6 +278,12 @@ class BotService(
         val thumbUrl = queryData.thumbnail
         val fieldPlacer: MutableList<WebhookEmbed.Field> = mutableListOf()
         var msg = "<@&${roleID}> "
+
+        if (roleID.contains("ignore:")){
+            val fixedRole = roleID.removePrefix("ignore:")
+            msg = fixedRole
+        }
+
 
         val notifyType = deliverState.label
 

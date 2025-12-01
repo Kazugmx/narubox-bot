@@ -32,7 +32,7 @@ class AuthService(@Suppress("unused") db: Database, private val logger: Logger) 
         private const val LOCK_TIME_MS = 5 * 60 * 1000L // 5分
     }
 
-    private suspend fun updateTime(id: Int) = dbQuery {
+    private fun updateTime(id: Int){
         UserTable.update(where = { UserTable.id eq id }) {
             it[lastAccessAt] = CurrentDateTime
         }
@@ -78,8 +78,7 @@ class AuthService(@Suppress("unused") db: Database, private val logger: Logger) 
 
         @Suppress("LocalVariableName")
         val FALLBACK_HASH = $$"$2b$16$C6UzMDM.H6dfI/f/IKcCcO4uP04Jw8A61uYyYV3D1h0WyZxWj96C2"
-        val challUserData =
-            UserTable
+        val challUserData = UserTable
                 .select(UserTable.id, UserTable.password)
                 .where { UserTable.username eq username }
                 .singleOrNull()
@@ -94,9 +93,9 @@ class AuthService(@Suppress("unused") db: Database, private val logger: Logger) 
 
         if (verified && challUserData != null) {
             val intID = challUserData[UserTable.id].value
+            logger.info("userid:{} is logged in.", intID)
             updateTime(intID)
             loginAttempts.remove(username)
-            logger.info("userid:{} is logged in.", intID)
             return@dbQuery intID
         }
 

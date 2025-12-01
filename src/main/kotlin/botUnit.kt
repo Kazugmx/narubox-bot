@@ -116,6 +116,17 @@ fun Application.initBotUnit(bot: BotService) {
                             call.respond(HttpStatusCode.BadRequest, mapOf("success" to false))
                         }
                     }
+                    delete("channel/{channelID}") {
+                        call.tryAuth { _, userID ->
+                            val botID =
+                                call.parameters["botID"] ?: return@tryAuth call.respond(HttpStatusCode.BadRequest)
+                            val channelID =
+                                call.parameters["channelID"] ?: return@tryAuth call.respond(HttpStatusCode.BadRequest)
+
+                            bot.deleteChannel(userID, botID, channelID)
+                            call.respond(HttpStatusCode.Accepted, mapOf("success" to true))
+                        }
+                    }
                 }
             }
         }
