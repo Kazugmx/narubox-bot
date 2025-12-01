@@ -21,22 +21,14 @@ Here's a list of features included in this project:
 | [Forwarded Headers](https://start.ktor.io/p/forwarded-header-support)  | Allows handling proxied headers (X-Forwarded-*)                                    |
 | [Routing](https://start.ktor.io/p/routing)                             | Provides a structured routing DSL                                                  |
 | [OpenAPI](https://start.ktor.io/p/openapi)                             | Serves OpenAPI documentation                                                       |
-| [Simple Cache](https://start.ktor.io/p/simple-cache)                   | Provides API for cache management                                                  |
-| [Simple Redis Cache](https://start.ktor.io/p/simple-redis-cache)       | Provides Redis cache for Simple Cache plugin                                       |
 | [Authentication](https://start.ktor.io/p/auth)                         | Provides extension point for handling the Authorization header                     |
 | [Authentication JWT](https://start.ktor.io/p/auth-jwt)                 | Handles JSON Web Token (JWT) bearer authentication scheme                          |
 | [Content Negotiation](https://start.ktor.io/p/content-negotiation)     | Provides automatic content conversion according to Content-Type and Accept headers |
 | [kotlinx.serialization](https://start.ktor.io/p/kotlinx-serialization) | Handles JSON serialization using kotlinx.serialization library                     |
 | [Sessions](https://start.ktor.io/p/ktor-sessions)                      | Adds support for persistent sessions through cookies or headers                    |
 | [Request Validation](https://start.ktor.io/p/request-validation)       | Adds validation for incoming requests                                              |
-| [Call Logging](https://start.ktor.io/p/call-logging)                   | Logs client requests                                                               |
-| [Metrics](https://start.ktor.io/p/metrics)                             | Adds supports for monitoring several metrics                                       |
 | [Exposed](https://start.ktor.io/p/exposed)                             | Adds Exposed database to your application                                          |
 | [Postgres](https://start.ktor.io/p/postgres)                           | Adds Postgres database to your application                                         |
-| [Dependency Injection](https://start.ktor.io/p/ktor-di)                | Enables dependency injection for your server                                       |
-| [Koin](https://start.ktor.io/p/koin)                                   | Provides dependency injection                                                      |
-| [RabbitMQ](https://start.ktor.io/p/ktor-server-rabbitmq)               | Adds RabbitMQ support to your application                                          |
-| [Task Scheduling](https://start.ktor.io/p/ktor-server-task-scheduling) | Manages scheduled tasks across instances of your distributed Ktor server           |
 
 ## Building & Running
 
