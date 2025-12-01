@@ -5,11 +5,11 @@ ktor:
   deployment:
     port: 8080
 jwt:
-  domain: "https://jwt-provider-domain/"
+  domain: "https://${CALLBACK_ORIGIN:invalidOrigin}"
   audience: "jwt-audience"
   realm: "narubox-bot"
   issuer: "narubox-auth"
-  secret: "7f1b918813641ba4158d853668eb1f660a4e039bb368356a7a5b31d2256b1ae6"
+  secret: "${JWT_SECRET:invalidSecret}"
 db:
   url: "jdbc:sqlite:data/bot_data.db"
 youtube:

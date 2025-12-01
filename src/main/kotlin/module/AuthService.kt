@@ -76,24 +76,27 @@ class AuthService(@Suppress("unused") db: Database, private val logger: Logger) 
             return@dbQuery -1
         }
 
-        val DUMMY = $$"$2b$16$C6UzMDM.H6dfI/f/IKcCcO4uP04Jw8A61uYyYV3D1h0WyZxWj96C2"
+        @Suppress("LocalVariableName")
+        val FALLBACK_HASH = $$"$2b$16$C6UzMDM.H6dfI/f/IKcCcO4uP04Jw8A61uYyYV3D1h0WyZxWj96C2"
         val challUserData =
             UserTable
                 .select(UserTable.id, UserTable.password)
                 .where { UserTable.username eq username }
                 .singleOrNull()
-        val storedPassword = challUserData?.get(UserTable.password)
-            ?: DUMMY
-        val check = BCrypt
+        val targetHash = challUserData?.get(UserTable.password)
+            ?: FALLBACK_HASH
+
+        val verified = BCrypt
             .verifyer().verify(
                 loginReq.password.toCharArray(),
-                storedPassword.toCharArray()
+                targetHash.toCharArray()
             ).verified
-        if (check && challUserData != null) {
+
+        if (verified && challUserData != null) {
             val intID = challUserData[UserTable.id].value
-            logger.info("userid:{} is logged in.", intID)
             updateTime(intID)
             loginAttempts.remove(username)
+            logger.info("userid:{} is logged in.", intID)
             return@dbQuery intID
         }
 

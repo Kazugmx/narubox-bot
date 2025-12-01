@@ -18,8 +18,8 @@ kotlin{
     jvmToolchain(21)
 }
 
-group = "net.kazugmx"
-version = "1.1.0-PROD"
+group = "net.kazugmx.narubot-dy"
+version = "1.1.1-PROD"
 
 application {
     mainClass = "net.kazugmx.ApplicationKt"
@@ -72,6 +72,6 @@ dependencies {
 
 tasks.shadowJar {
     archiveBaseName.set("kazunyan-youtube-pubsub-bot")
-    archiveClassifier.set("")
+    archiveClassifier.set("server")
     archiveVersion.set(version.toString())
 }

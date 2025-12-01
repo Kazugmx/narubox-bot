@@ -42,3 +42,4 @@ server/apikey
 *.db
 bot_data.db
 *.log
+/logs/

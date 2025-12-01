@@ -2,22 +2,30 @@ package net.kazugmx
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import io.ktor.serialization.kotlinx.json.json
-import io.ktor.serialization.kotlinx.xml.xml
+import io.ktor.serialization.kotlinx.json.*
+import io.ktor.serialization.kotlinx.xml.*
 import io.ktor.server.application.*
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.contentnegotiation.*
 import kotlinx.serialization.json.Json
-import org.jetbrains.exposed.sql.Database
 import net.kazugmx.module.AuthService
 import net.kazugmx.module.BotService
+import org.jetbrains.exposed.sql.Database
 import org.slf4j.LoggerFactory
+import java.io.File
 
 
 fun main(args: Array<String>) {
     io.ktor.server.netty.EngineMain.main(args)
 }
 
+fun ensureDBDirectory() {
+    File("data/data_db").parentFile?.let {
+        if (!it.exists()) it.mkdirs()
+    }
+}
+
 fun Application.module() {
+    ensureDBDirectory()
     val config =
         HikariConfig().apply {
             jdbcUrl = environment.config.property("db.url").getString()
@@ -49,8 +57,8 @@ fun Application.module() {
     val authLogger = LoggerFactory.getLogger("AuthService")
     val botLogger = LoggerFactory.getLogger("BotService")
 
-    val authSvc = AuthService(db = database, logger=authLogger)
-    val botSvc = BotService(db = database, logger=botLogger, apiKey = apiKey,origin = rootOrigin)
+    val authSvc = AuthService(db = database, logger = authLogger)
+    val botSvc = BotService(db = database, logger = botLogger, apiKey = apiKey, origin = rootOrigin)
 
     initAuthUnit(authSvc)
     initBotUnit(botSvc)
