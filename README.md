@@ -1,4 +1,15 @@
 # discordbot-narufc
+project for my server. maybe
+
+##Quickstart
+
+1. run `./gradlew buildFatJar`
+2. write config on `.API_KEY`, `.CALLBACK_ORIGIN`, `.JWT_SECRET`
+3. run `java -jar` with jar file which you built
+4. expose listenport with proxy e.g. Nginx, Cloudflare Tunnel
+5. enjoy!
+
+# ktor-init
 
 This project was created using the [Ktor Project Generator](https://start.ktor.io).
 
