@@ -4,7 +4,7 @@ info:
   description: "Application API"
   version: "1.0.0"
 servers:
-  - url: "https://narubox.kazugmx.net"
+  - url: "http://localhost:8080"
 paths:
   /:
     get:
