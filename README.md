@@ -1,37 +1,26 @@
-# discordbot-narufc
-project for my server. maybe
+# narubox-bot
 
-##Quickstart
+narubox-bot for Discord.
+This bot uses [Google PubSubHubbub](https://pubsubhubbub.appspot.com/) and
+the [YouTube Data API](https://developers.google.com/youtube/v3) to send
+real-time notifications to Discord about channel livestreams and video updates.
+
+## Quickstart
 
 1. run `./gradlew buildFatJar`
 2. write config on `.API_KEY`, `.CALLBACK_ORIGIN`, `.JWT_SECRET`
-3. run `java -jar` with jar file which you built
+3. run `java -jar` with jar files which you built
 4. expose listenport with proxy e.g. Nginx, Cloudflare Tunnel
 5. enjoy!
 
-# ktor-init
-
-This project was created using the [Ktor Project Generator](https://start.ktor.io).
-
-Here are some useful links to get you started:
-
-- [Ktor Documentation](https://ktor.io/docs/home.html)
-- [Ktor GitHub page](https://github.com/ktorio/ktor)
-- The [Ktor Slack chat](https://app.slack.com/client/T09229ZC6/C0A974TJ9). You'll need
-  to [request an invite](https://surveys.jetbrains.com/s3/kotlin-slack-sign-up) to join.
-
 ## Features
 
-Here's a list of features included in this project:
+- Realtime Notification for YouTube Live Stream & video uploads
+- Discord Webhook Integration
 
 | Name                                                                   | Description                                                                        |
-| ------------------------------------------------------------------------|------------------------------------------------------------------------------------ |
-| [AsyncAPI](https://start.ktor.io/p/asyncapi)                           | Generates and serves AsyncAPI documentation                                        |
-| [CORS](https://start.ktor.io/p/cors)                                   | Enables Cross-Origin Resource Sharing (CORS)                                       |
-| [Default Headers](https://start.ktor.io/p/default-headers)             | Adds a default set of headers to HTTP responses                                    |
-| [Forwarded Headers](https://start.ktor.io/p/forwarded-header-support)  | Allows handling proxied headers (X-Forwarded-*)                                    |
+|------------------------------------------------------------------------|------------------------------------------------------------------------------------|
 | [Routing](https://start.ktor.io/p/routing)                             | Provides a structured routing DSL                                                  |
-| [OpenAPI](https://start.ktor.io/p/openapi)                             | Serves OpenAPI documentation                                                       |
 | [Authentication](https://start.ktor.io/p/auth)                         | Provides extension point for handling the Authorization header                     |
 | [Authentication JWT](https://start.ktor.io/p/auth-jwt)                 | Handles JSON Web Token (JWT) bearer authentication scheme                          |
 | [Content Negotiation](https://start.ktor.io/p/content-negotiation)     | Provides automatic content conversion according to Content-Type and Accept headers |
@@ -39,14 +28,24 @@ Here's a list of features included in this project:
 | [Sessions](https://start.ktor.io/p/ktor-sessions)                      | Adds support for persistent sessions through cookies or headers                    |
 | [Request Validation](https://start.ktor.io/p/request-validation)       | Adds validation for incoming requests                                              |
 | [Exposed](https://start.ktor.io/p/exposed)                             | Adds Exposed database to your application                                          |
-| [Postgres](https://start.ktor.io/p/postgres)                           | Adds Postgres database to your application                                         |
+
+## Tech Stack
+
+| Name          | Technology                                 |
+|---------------|--------------------------------------------|
+| Language      | Kotlin                                     |
+| Web framework | [Ktor (server & client)](https://ktor.io/) |
+| Database      | SQLite + Exposed ORM + HikariCP            |
+| Auth          | JWT (Ktor authentication) + BCrypt         |
+| logging       | Logback,SLF4J                              |
+| API           | YouTube Data API v3                        |
 
 ## Building & Running
 
 To build or run the project, use one of the following tasks:
 
 | Task                                    | Description                                                          |
-| -----------------------------------------|---------------------------------------------------------------------- |
+|-----------------------------------------|----------------------------------------------------------------------|
 | `./gradlew test`                        | Run the tests                                                        |
 | `./gradlew build`                       | Build everything                                                     |
 | `./gradlew buildFatJar`                 | Build an executable JAR of the server with all dependencies included |

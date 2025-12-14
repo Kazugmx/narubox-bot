@@ -18,8 +18,8 @@ kotlin{
     jvmToolchain(21)
 }
 
-group = "net.kazugmx.narubot-dy"
-version = "1.1.1-PROD"
+group = "net.kazugmx.narubox-bot"
+version = "1.1.2-PROD"
 
 application {
     mainClass = "net.kazugmx.ApplicationKt"
@@ -35,8 +35,6 @@ dependencies {
     implementation("io.ktor:ktor-server-forwarded-header")
     implementation("io.ktor:ktor-server-core")
     implementation("io.ktor:ktor-server-openapi")
-    implementation("com.ucasoft.ktor:ktor-simple-cache:0.55.3")
-    implementation("com.ucasoft.ktor:ktor-simple-redis-cache:0.55.3")
     implementation("io.ktor:ktor-server-auth")
     implementation("io.ktor:ktor-server-auth-jwt")
     implementation("io.ktor:ktor-server-content-negotiation")
@@ -53,14 +51,6 @@ dependencies {
     implementation("com.zaxxer:HikariCP:7.0.2")
     implementation("org.xerial:sqlite-jdbc:3.50.3.0")
     implementation("org.postgresql:postgresql:$postgres_version")
-    implementation("io.ktor:ktor-server-di")
-    implementation("io.insert-koin:koin-ktor:$koin_version")
-    implementation("io.insert-koin:koin-logger-slf4j:$koin_version")
-    implementation("io.github.damirdenis-tudor:ktor-server-rabbitmq:1.3.6")
-    implementation("io.github.flaxoos:ktor-server-task-scheduling-core:2.2.1")
-    implementation("io.github.flaxoos:ktor-server-task-scheduling-redis:2.2.1")
-    implementation("io.github.flaxoos:ktor-server-task-scheduling-mongodb:2.2.1")
-    implementation("io.github.flaxoos:ktor-server-task-scheduling-jdbc:2.2.1")
     implementation("io.ktor:ktor-server-netty")
     implementation("ch.qos.logback:logback-classic:$logback_version")
     implementation("io.ktor:ktor-server-config-yaml")
