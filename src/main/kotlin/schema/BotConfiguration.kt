@@ -49,6 +49,7 @@ object ChannelRegTable : IntIdTable("channel_bot_tags") {
 object ChannelTable : Table("reg_channel") {
     val channelID = varchar("channel_id", length = 60)
     var lastUpdate = datetime("last_update").defaultExpression(CurrentDateTime)
+    val endpointID = varchar("endpoint_id",length=90)
 }
 
 object OnAirTable : Table("on_air") {

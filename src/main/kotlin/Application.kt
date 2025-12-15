@@ -35,10 +35,23 @@ fun Application.module() {
             transactionIsolation = "TRANSACTION_SERIALIZABLE"
             validate()
         }
+    var hasInvalidArgument = false
     val apiKey = environment.config.property("youtube.apikey").getString()
     val rootOrigin = environment.config.property("youtube.callbackOrigin").getString()
-    if (apiKey == "invalidKey") throw Exception("API Key is invalid.")
-    if (rootOrigin == "invalidOrigin") throw Exception("Root Origin is invalid.")
+    val uriMaster = environment.config.property("youtube.uri_master").getString()
+    if (apiKey == "invalidKey") {
+        log.error("API Key is invalid.")
+        hasInvalidArgument = true
+    }
+    if (rootOrigin == "invalidOrigin") {
+        log.error("Root Origin is invalid.")
+        hasInvalidArgument = true
+    }
+    if (uriMaster == "invalidURIMaster") {
+        log.error("URI Master is invalid.")
+        hasInvalidArgument = true
+    }
+    if (hasInvalidArgument) throw Exception("Environment arguments is invalid.")
     val dataSource = HikariDataSource(config)
 
     val database = Database.connect(datasource = dataSource)

@@ -19,6 +19,8 @@ import org.slf4j.Logger
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.*
+import javax.crypto.KeyGenerator
+import javax.crypto.Mac
 import kotlin.uuid.ExperimentalUuidApi
 
 
@@ -69,7 +71,7 @@ class BotService(
                     idExist[OnAirTable.previousState] == DeliverState.ON_AIR.text &&
                     idExist[OnAirTable.previousState] != data.type
                 ) {
-                    OnAirTable.update( { OnAirTable.videoID eq idExist[OnAirTable.videoID] }){
+                    OnAirTable.update({ OnAirTable.videoID eq idExist[OnAirTable.videoID] }) {
                         it[OnAirTable.previousState] = DeliverState.VIDEO.text
                     }
                     state = DeliverState.FINISHED
@@ -92,9 +94,11 @@ class BotService(
                 DeliverState.ON_AIR.text -> {
                     state = DeliverState.ON_AIR
                 }
+
                 DeliverState.UPCOMING.text -> {
                     state = DeliverState.UPCOMING
                 }
+
                 DeliverState.VIDEO.text -> {
                     state = DeliverState.VIDEO
                 }
@@ -124,6 +128,7 @@ class BotService(
                     (BotRegTable.ownerID eq userID)
         }.singleOrNull() != null
         if (hasConflict) return@dbQuery BotRegisterRes()
+
         val botID = BotRegTable.insert {
             it[BotRegTable.label] = request.botLabel
             it[BotRegTable.wsUrl] = request.wsUrl
@@ -131,7 +136,7 @@ class BotService(
             it[BotRegTable.mentionRoleID] = request.mentionRoleID
         }[BotRegTable.id].value.toString()
 
-        val mentionIDPlacer = if (request.mentionRoleID.contains("ignore:")){
+        val mentionIDPlacer = if (request.mentionRoleID.contains("ignore:")) {
             request.mentionRoleID.removePrefix("ignore:")
         } else "<@&${request.mentionRoleID}>"
 
@@ -175,11 +180,18 @@ class BotService(
             return@dbQuery false
         }
         if (!isOwner) return false
+        data class Regist(
+            var channelID: String? = null,
+            var endpointID: String? = null,
+            val isAvailable: Boolean = false
+        )
 
         val hasRegisteredOnChannels = dbQuery {
-            ChannelTable.select(ChannelTable.channelID).where {
+            ChannelTable.select(ChannelTable.channelID, ChannelTable.endpointID).where {
                 ChannelTable.channelID eq channelID
-            }.singleOrNull()?.let { true } ?: false
+            }.singleOrNull()?.let {
+                Regist(it[ChannelTable.channelID], it[ChannelTable.endpointID], isAvailable = true)
+            } ?: Regist(channelID = subReq.channelID)
         }
 
         val hasRegisteredOnBot = dbQuery {
@@ -188,10 +200,25 @@ class BotService(
             }.singleOrNull()?.let { true } ?: false
         }
 
-        if (!hasRegisteredOnChannels || subReq.refresh) {
+        fun generateEndpointId(cid: String): String {
+            val keyGen = KeyGenerator.getInstance("HmacSHA256")
+            val secret = keyGen.generateKey()
+            val mac = Mac.getInstance("HmacSHA256")
+
+            mac.init(secret)
+            val result = mac.doFinal(cid.toByteArray())
+            return result.toHexString()
+        }
+
+        if (hasRegisteredOnChannels.isAvailable || subReq.refresh) {
+            if (hasRegisteredOnChannels.endpointID.isNullOrBlank()) {
+                hasRegisteredOnChannels.endpointID = generateEndpointId(subReq.channelID)
+            }
+
+            val endpointID: String = hasRegisteredOnChannels.endpointID ?: return false
             val hubUrl = "https://pubsubhubbub.appspot.com/subscribe"
             val topicUrl = "https://www.youtube.com/xml/feeds/videos.xml?channel_id=$channelID"
-            val callbackUrl = "https://${origin}/api/v1/bot/pubsub"
+            val callbackUrl = "https://${origin}/api/v1/bot/pubsub/${endpointID}"
 
             val a = client.post(hubUrl) {
                 url {
@@ -204,12 +231,14 @@ class BotService(
             }
 
             dbQuery {
-                if (!hasRegisteredOnBot) ChannelTable.insert { it[ChannelTable.channelID] = channelID }
+                if (!hasRegisteredOnBot) ChannelTable.insert {
+                    it[ChannelTable.channelID] = channelID
+                    it[ChannelTable.endpointID] = endpointID
+                }
                 else ChannelTable.update({ ChannelTable.channelID eq channelID }) {
                     it[ChannelTable.lastUpdate] = CurrentDateTime
                 }
             }
-
             logger.info(
                 "status: {} / Subscribed to channel {} by bot {}",
                 a.status.value, channelID, botID
@@ -224,7 +253,7 @@ class BotService(
         return true
     }
 
-    suspend fun deleteChannel(userID:Int,botID:String,channelID:String) = dbQuery {
+    suspend fun deleteChannel(userID: Int, botID: String, channelID: String) = dbQuery {
         val isAvailable = BotRegTable.select(BotRegTable.ownerID).where {
             (BotRegTable.id eq UUID.fromString(botID)) and (BotRegTable.ownerID eq userID)
         }.singleOrNull()
@@ -279,7 +308,7 @@ class BotService(
         val fieldPlacer: MutableList<WebhookEmbed.Field> = mutableListOf()
         var msg = "<@&${roleID}> "
 
-        if (roleID.contains("ignore:")){
+        if (roleID.contains("ignore:")) {
             val fixedRole = roleID.removePrefix("ignore:")
             msg = fixedRole
         }
@@ -339,7 +368,14 @@ class BotService(
         )
     }
 
-    suspend fun notifyToBots(videoID: String): Boolean {
+    suspend fun notifyToBots(videoID: String, endpointID: String): Boolean {
+        val isValidEndpoint = dbQuery {
+            ChannelTable.select(ChannelTable.endpointID).where {
+                ChannelTable.endpointID eq endpointID
+            }.singleOrNull()?.let { true } ?: false
+        }
+        if (!isValidEndpoint) return false
+
         val queryRes = youtubeVideoQuery(videoID) ?: return false
         val status = classifyStatusToNotify(queryRes)
         if (status.toDeliver) {

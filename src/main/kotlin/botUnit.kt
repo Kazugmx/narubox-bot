@@ -41,31 +41,34 @@ fun Application.initBotUnit(bot: BotService) {
 
     routing {
         route("/api/v1/bot") {
-            get("pubsub") {
-                val chall = call.queryParameters["hub.challenge"]
-                if (chall != null) {
-                    log.info("PubSub challenge: {}", chall)
-                    call.respondText(chall)
-                } else call.respond(HttpStatusCode.BadRequest)
-            }
-            post("pubsub") {
-                val body = call.receiveText()
-                val feed = parseFeed(body) ?: return@post call.respond(HttpStatusCode.OK)
-                val isDeletedEntry = body.contains("deleted-entry")
-                if (isDeletedEntry) {
-                    log.info(
-                        "Deleted entry passed. Skipped notifying."
-                    )
+            route("pubsub/{endpointID}"){
+                get {
+                    val chall = call.queryParameters["hub.challenge"]
+                    if (chall != null) {
+                        log.info("PubSub challenge: {}", chall)
+                        call.respondText(chall)
+                    } else call.respond(HttpStatusCode.BadRequest)
                 }
-                log.info("PubSub body: \n{}", body)
+                post {
+                    val endpoint = call.parameters["endpointID"] ?: return@post call.respond(HttpStatusCode.OK)
+                    val body = call.receiveText()
+                    val feed = parseFeed(body) ?: return@post call.respond(HttpStatusCode.OK)
+                    val isDeletedEntry = body.contains("deleted-entry")
+                    if (isDeletedEntry) {
+                        log.info(
+                            "Deleted entry passed. Skipped notifying."
+                        )
+                    }
+                    log.info("PubSub body: \n{}", body)
 
-                if (isDeletedEntry) return@post call.respond(HttpStatusCode.OK)
+                    if (isDeletedEntry) return@post call.respond(HttpStatusCode.OK)
 
-                feed.entry?.forEach {
-                    log.info("channelID {} / https://www.youtube.com/watch?v={}", it.channelID, it.videoID)
-                    it.videoID?.let { videoID -> backScope.launch { bot.notifyToBots(videoID = videoID) } }
+                    feed.entry?.forEach {
+                        log.info("channelID {} / https://www.youtube.com/watch?v={}", it.channelID, it.videoID)
+                        it.videoID?.let { videoID -> backScope.launch { bot.notifyToBots(videoID = videoID,endpointID=endpoint) } }
+                    }
+                    call.respond(HttpStatusCode.OK)
                 }
-                call.respond(HttpStatusCode.OK)
             }
 
 
