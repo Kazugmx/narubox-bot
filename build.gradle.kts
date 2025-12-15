@@ -26,6 +26,7 @@ application {
 }
 
 dependencies {
+    implementation(platform("org.jetbrains.exposed:exposed-bom:$exposed_version"))
     implementation("net.dv8tion:JDA:6.1.1")
     implementation("at.favre.lib:bcrypt:${bcrypt_version}")
 
@@ -45,17 +46,21 @@ dependencies {
     implementation("io.ktor:ktor-server-metrics")
     implementation("io.ktor:ktor-client-core")
     implementation("io.ktor:ktor-client-cio")
-    implementation("org.jetbrains.exposed:exposed-core:$exposed_version")
-    implementation("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
+    implementation("org.jetbrains.exposed:exposed-core")
+    implementation("org.jetbrains.exposed:exposed-jdbc")
+    implementation("org.jetbrains.exposed:exposed-dao")
+    implementation("org.jetbrains.exposed:exposed-kotlin-datetime")
     implementation("com.h2database:h2:$h2_version")
     implementation("com.zaxxer:HikariCP:7.0.2")
-    implementation("org.xerial:sqlite-jdbc:3.50.3.0")
+    //implementation()
+    runtimeOnly("org.xerial:sqlite-jdbc:3.50.3.0")
     implementation("org.postgresql:postgresql:$postgres_version")
     implementation("io.ktor:ktor-server-netty")
     implementation("ch.qos.logback:logback-classic:$logback_version")
     implementation("io.ktor:ktor-server-config-yaml")
     implementation("io.ktor:ktor-client-content-negotiation:3.3.2")
     implementation("io.ktor:ktor-serialization-kotlinx-xml:3.3.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
     testImplementation("io.ktor:ktor-server-test-host")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
 }
