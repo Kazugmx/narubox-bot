@@ -43,5 +43,5 @@ server/apikey
 bot_data.db
 *.log
 /logs/
-docker-compose.yml
+/docker-compose.yml
 compose-test
