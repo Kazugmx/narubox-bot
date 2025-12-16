@@ -231,7 +231,7 @@ class BotService(
             }
 
             dbQuery {
-                if (!hasRegisteredOnBot) ChannelTable.insert {
+                if (!hasRegisteredOnChannels.isAvailable) ChannelTable.insert {
                     it[ChannelTable.channelID] = channelID
                     it[ChannelTable.endpointID] = endpointID
                 }

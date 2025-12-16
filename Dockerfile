@@ -1,16 +1,21 @@
-FROM eclipse-temurin:21-jre-jammy AS builder
+# --- build ---
+FROM eclipse-temurin:21-jdk AS builder
+WORKDIR /build
+COPY . .
+RUN ./gradlew clean buildFatJar --no-daemon
 
-WORKDIR /app
-COPY build/libs/discordbot-narufc-all.jar app.jar
-COPY src/main/resources/application.yaml /app/application.yaml
-COPY src/main/resources/logback.xml /app/logback.xml
-
+# --- runtime ---
 FROM gcr.io/distroless/java21
 WORKDIR /app
-COPY --from=builder /app /app
+COPY --from=builder /build/build/libs/*.jar app.jar
 
 EXPOSE 8080
+
+ENV SERVER_PORT=8080
 ENV APIKEY=invalidKey
 ENV CALLBACK_ORIGIN=invalidOrigin
+ENV JWT_SECRET=invalidSecret
+ENV URI_MASTER=invalidURIMaster
+ENV JAVA_OPTS="-Xms128m -Xmx512m -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=25.0"
 
-CMD ["app.jar"]
+CMD ["java","-jar","app.jar"]
