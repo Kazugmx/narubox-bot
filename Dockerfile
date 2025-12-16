@@ -16,6 +16,6 @@ ENV APIKEY=invalidKey
 ENV CALLBACK_ORIGIN=invalidOrigin
 ENV JWT_SECRET=invalidSecret
 ENV URI_MASTER=invalidURIMaster
-ENV JAVA_OPTS="-Xms128m -Xmx512m -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=25.0"
+ENV JAVA_TOOL_OPTIONS="-Xms128m -Xmx512m -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=25.0"
 
-CMD ["java","-jar","app.jar"]
+ENTRYPOINT ["java","-jar","app.jar"]

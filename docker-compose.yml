@@ -1,0 +1,13 @@
+services:
+  bot:
+    build: .
+    environment:
+      APIKEY: AIzaSyBnx53Fd2Ss6m-AmHpzWAA6qXtofU6VTgI
+      CALLBACK_ORIGIN: develop2-server.kazugmx.site
+      JWT_SECRET: 2c76bb510487da449778517eb93750d8de9df1d91f00efd46afebf14b1a4f62f
+      SERVER_PORT: 38080
+      URI_MASTER: d605cc94fbdc6b9d09c061315d4d92bf
+    ports:
+      - 38080:38080
+    volumes:
+      - ./data-compose:/data

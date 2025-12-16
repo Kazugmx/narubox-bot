@@ -1,0 +1,13 @@
+services:
+  bot:
+    build: .
+    environment:
+      APIKEY: key
+      CALLBACK_ORIGIN: origin
+      JWT_SECRET: jwtSecret
+      SERVER_PORT: port
+      URI_MASTER: uri-masterkey
+    ports:
+      - 38080:38080
+    volumes:
+      - ./data-compose:/data

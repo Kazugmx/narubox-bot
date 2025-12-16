@@ -11,7 +11,7 @@ jwt:
   issuer: "narubox-auth"
   secret: "${JWT_SECRET:invalidSecret}"
 db:
-  url: "jdbc:sqlite:data/bot_data.db"
+  url: ${JDBC_URL:jdbc:sqlite:data/bot_data.db}
 youtube:
   apikey: "${APIKEY:invalidKey}"
   callbackOrigin: "${CALLBACK_ORIGIN:invalidOrigin}"
