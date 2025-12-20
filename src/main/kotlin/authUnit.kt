@@ -67,8 +67,7 @@ fun Application.initAuthUnit(authService: AuthService) {
                 post {
                     val req = call.receive<UserCreateReq>()
                     val result = authService.create(req)
-                    if (result.status == "failed") return@post call.respond(HttpStatusCode.BadRequest)
-                    call.respond(HttpStatusCode.OK, result)
+                    call.respond(HttpStatusCode.Created, result)
                 }
             }
             route("login") {

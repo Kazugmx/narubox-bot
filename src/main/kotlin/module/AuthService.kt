@@ -18,7 +18,13 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.Logger
 
 
-class AuthService(@Suppress("unused") db: Database, private val logger: Logger) {
+class AuthService(
+    @Suppress("unused") db: Database,
+    private val isMailActive: Boolean,
+    private val mailConfig: MailConfig,
+    private val logger: Logger,
+    private val newUser: Boolean
+) {
     init {
         transaction {
             SchemaUtils.create(UserTable)
@@ -32,7 +38,7 @@ class AuthService(@Suppress("unused") db: Database, private val logger: Logger) 
         private const val LOCK_TIME_MS = 5 * 60 * 1000L // 5分
     }
 
-    private fun updateTime(id: Int){
+    private fun updateTime(id: Int) {
         UserTable.update(where = { UserTable.id eq id }) {
             it[lastAccessAt] = CurrentDateTime
         }
@@ -40,6 +46,7 @@ class AuthService(@Suppress("unused") db: Database, private val logger: Logger) 
 
 
     suspend fun create(req: UserCreateReq) = dbQuery {
+        if (newUser) return@dbQuery UserCreateRes(status = "user registration is disabled.")
         val pwHash = BCrypt.withDefaults().hashToString(16, req.password.toCharArray())
         val existUser = UserTable.select(
             UserTable.username
@@ -79,9 +86,9 @@ class AuthService(@Suppress("unused") db: Database, private val logger: Logger) 
         @Suppress("LocalVariableName")
         val FALLBACK_HASH = $$"$2b$16$C6UzMDM.H6dfI/f/IKcCcO4uP04Jw8A61uYyYV3D1h0WyZxWj96C2"
         val challUserData = UserTable
-                .select(UserTable.id, UserTable.password)
-                .where { UserTable.username eq username }
-                .singleOrNull()
+            .select(UserTable.id, UserTable.password)
+            .where { UserTable.username eq username }
+            .singleOrNull()
         val targetHash = challUserData?.get(UserTable.password)
             ?: FALLBACK_HASH
 

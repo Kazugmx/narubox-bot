@@ -36,6 +36,15 @@ data class SelfRes(
     val lastAccess: LocalDateTime? = null
 )
 
+data class MailConfig(
+    val host: String,
+    val port: Int,
+    val user: String,
+    val pass: String,
+    val mailAddress: String
+)
+
+
 object UserTable : IntIdTable("user_table") {
     val username = varchar("username", 50).uniqueIndex()
     val mail = varchar("mail", length = 255).uniqueIndex()

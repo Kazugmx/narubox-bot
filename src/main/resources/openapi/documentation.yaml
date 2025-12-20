@@ -1,23 +1,321 @@
 openapi: "3.0.3"
 info:
   title: "Application API"
-  description: "Application API"
   version: "1.0.0"
 servers:
-  - url: "http://localhost:8080"
+  - url: http://localhost:8080
+    description: Local development server
+
 paths:
-  /:
+  /api/v1/auth/login:
     get:
-      description: "Hello World!"
+      operationId: verify mail
+      tags:
+        - auth
+      description: User verification endpoint with mail-sent token
+      parameters:
+        - name: verify
+          in: query
+          required: true
+          example: AUTH-TOKEN-1234567890
       responses:
-        "200":
-          description: "OK"
+        200:
+          description: User verified successfully
+        400:
+          description: Invalid or expired token
+    post:
+      operationId: login
+      tags:
+        - auth
+      description: User login endpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        200:
+          description: Login successful
           content:
-            text/plain:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        401:
+          description: Unauthorized - Invalid credentials
+  /api/v1/auth/user:
+    get:
+      operationId: get user info
+      tags:
+        - auth
+      description: User details endpoint
+      security:
+        - bearerAuth: [ ]
+      responses:
+        200:
+          description: User details returned successfully
+    post:
+      operationId: register user
+      tags:
+        - auth
+      description: User registration endpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        201:
+          description: Registration successful
+  /api/v1/bot:
+    get:
+      operationId: get bots which owned by authenticated user
+      tags:
+        - app
+      description: Get list of registered bots for authenticated user
+      security:
+        - bearerAuth: [ ]
+      responses:
+        200:
+          description: Bot configuration returned successfully
+  /api/v1/bot/register:
+    description: bot registration management endpoint
+    post:
+      operationId: register bot
+      tags:
+        - app
+      description: Register a new bot
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BotRegisterReq'
+      responses:
+        202:
+          description: Bot registered successfully
+        400:
+          description: Bad request - Registration failed
+  /api/v1/bot/{botID}:
+    get:
+      operationId: get channels for a specific bot
+      tags:
+        - app
+      description: Get channels for a specific bot
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: botID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Channels returned successfully
+        400:
+          description: Bad request
+    delete:
+      operationId: unregister bot
+      tags:
+        - app
+      description: Unregister a bot
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: botID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        202:
+          description: Bot unregistered successfully
+        400:
+          description: Bad request
+    post:
+      operationId: subscribe channel to bot
+      tags:
+        - app
+      description: Subscribe a channel to a bot
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: botID
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscribeRequest'
+      responses:
+        202:
+          description: Channel subscribed successfully
+        400:
+          description: Bad request - Subscription failed
+  /api/v1/bot/{botID}/channel/{channelID}:
+    description: channel subscription management endpoint
+    delete:
+      operationId: unsubscribe channel from bot
+      tags:
+        - app
+      description: Unsubscribe a channel from a bot
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: botID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: channelID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        202:
+          description: Channel unsubscribed successfully
+        400:
+          description: Bad request
+  /api/v1/bot/pubsub/{endpointID}:
+    get:
+      operationId: verify pubsubhubbub endpoint
+      tags:
+        - app
+      description: PubSubHubbub webhook verification endpoint
+      parameters:
+        - name: endpointID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: hub.challenge
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Challenge response
+        400:
+          description: Bad request
+    post:
+      operationId: process pubsubhubbub notification
+      tags:
+        - app
+      description: PubSubHubbub webhook notification endpoint
+      parameters:
+        - name: endpointID
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              type: string
+      responses:
+        200:
+          description: Notification processed successfully
+  /misc/naru-saikou:
+    get:
+      tags:
+        - misc
+      operationId: "misc-1"
+      responses:
+        "202":
+          description: "Accepted"
+          content:
+            '*/*':
               schema:
                 type: "string"
               examples:
                 Example#1:
-                  value: "Hello World!"
+                  value: "ﾅﾙﾁｬﾝｶﾜｲｲﾔｯﾀｰ"
+  /misc/kemomimi:
+    get:
+      tags:
+        - misc
+      operationId: "misc-2"
+      responses:
+        "202":
+          description: "Accepted"
+          content:
+            '*/*':
+              schema:
+                type: "string"
+              examples:
+                Example#1:
+                  value: "けもみみもふもふ！！"
+
+tags:
+  - name: auth
+    description: Authentication endpoints
+    externalDocs:
+      url: https://github.com/Kazugmx/narubox-bot/wiki/Authentication
+      description: Authentication documents
+  - name: app
+    description: Endpoints for bot configuration
+    externalDocs:
+      url: https://github.com/Kazugmx/narubox-bot/wiki/Application
+      description: Configuration documents
+  - name: misc
+    description: |
+      Miscellaneous endpoints for fun!
+      just for fun :3c
+
 components:
-  schemas: { }
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT authentication token
+    BotRegisterReq:
+      type: object
+      required:
+        - token
+        - guildId
+      properties:
+        token:
+          type: string
+          description: Bot token
+        guildId:
+          type: string
+          description: Guild ID
+    SubscribeRequest:
+      type: object
+      required:
+        - channelId
+      properties:
+        channelId:
+          type: string
+          description: YouTube channel ID to subscribe
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

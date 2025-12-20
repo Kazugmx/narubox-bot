@@ -47,12 +47,16 @@ object ChannelRegTable : IntIdTable("channel_bot_tags") {
 }
 
 object ChannelTable : Table("reg_channel") {
-    val channelID = varchar("channel_id", length = 60)
+    val channelID = varchar("channel_id", length = 60).uniqueIndex()
     var lastUpdate = datetime("last_update").defaultExpression(CurrentDateTime)
     val endpointID = varchar("endpoint_id",length=90)
+
+    override val primaryKey = PrimaryKey(channelID)
 }
 
 object OnAirTable : Table("on_air") {
-    val videoID = varchar("video_id", length = 20)
+    val videoID = varchar("video_id", length = 20).uniqueIndex()
     val previousState = varchar("previous_state", length = 10)
+
+    override val primaryKey = PrimaryKey(videoID)
 }

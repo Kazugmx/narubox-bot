@@ -52,8 +52,6 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-kotlin-datetime")
     implementation("com.h2database:h2:$h2_version")
     implementation("com.zaxxer:HikariCP:7.0.2")
-    //implementation()
-    runtimeOnly("org.xerial:sqlite-jdbc:3.50.3.0")
     implementation("org.postgresql:postgresql:$postgres_version")
     implementation("io.ktor:ktor-server-netty")
     implementation("ch.qos.logback:logback-classic:$logback_version")
@@ -61,8 +59,14 @@ dependencies {
     implementation("io.ktor:ktor-client-content-negotiation:3.3.2")
     implementation("io.ktor:ktor-serialization-kotlinx-xml:3.3.2")
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
+    implementation("jakarta.mail:jakarta.mail-api:2.1.5")
     testImplementation("io.ktor:ktor-server-test-host")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
+
+
+    //JDBC Runtimes
+    runtimeOnly("org.postgresql:postgresql:42.7.7")
+    runtimeOnly("org.xerial:sqlite-jdbc:3.50.3.0")
 }
 
 tasks.shadowJar {
