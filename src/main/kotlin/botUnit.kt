@@ -20,9 +20,11 @@ import nl.adaptivity.xmlutil.ExperimentalXmlUtilApi
 import nl.adaptivity.xmlutil.serialization.DefaultXmlSerializationPolicy
 import nl.adaptivity.xmlutil.serialization.UnknownChildHandler
 import nl.adaptivity.xmlutil.serialization.XML
+import org.koin.ktor.ext.inject
 
 @OptIn(ExperimentalXmlUtilApi::class)
-fun Application.initBotUnit(bot: BotService) {
+fun Application.initBotUnit() {
+    val bot by inject<BotService>()
     val xml = XML {
         autoPolymorphic = false
         policy = DefaultXmlSerializationPolicy.Builder().apply {
@@ -45,7 +47,7 @@ fun Application.initBotUnit(bot: BotService) {
                 get {
                     val chall = call.queryParameters["hub.challenge"]
                     if (chall != null) {
-                        log.info("PubSub challenge: {}", chall)
+                        log.info("PubSub challenge: {} / endpoint {}", chall, call.parameters["endpointID"])
                         call.respondText(chall)
                     } else call.respond(HttpStatusCode.BadRequest)
                 }
@@ -73,6 +75,10 @@ fun Application.initBotUnit(bot: BotService) {
 
 
             authenticate("auth-jwt") {
+                get("force") {
+                    bot.refreshChannel()
+                    call.respond(HttpStatusCode.OK)
+                }
                 get {
                     call.tryAuth { principal, _ ->
                         val botList = bot.getBots(principal.payload.getClaim("userid").asInt())

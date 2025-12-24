@@ -2,6 +2,9 @@ package net.kazugmx
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as clientContentNegotiation
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.serialization.kotlinx.xml.*
 import io.ktor.server.application.*
@@ -11,10 +14,21 @@ import io.ktor.server.routing.routing
 import kotlinx.serialization.json.Json
 import net.kazugmx.module.AuthService
 import net.kazugmx.module.BotService
+import net.kazugmx.module.configureAdministration
+import net.kazugmx.schema.BotRegTable
+import net.kazugmx.schema.ChannelRegTable
+import net.kazugmx.schema.ChannelTable
 import net.kazugmx.schema.MailConfig
+import net.kazugmx.schema.OnAirTable
+import net.kazugmx.schema.UserTable
 import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.SchemaUtils
+import org.jetbrains.exposed.sql.transactions.transaction
+import org.koin.core.context.startKoin
+import org.koin.dsl.module
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.security.SecureRandom
 
 
 fun main(args: Array<String>) {
@@ -27,9 +41,16 @@ fun ensureDBDirectory() {
     }
 }
 
-enum class DBType {
-    SQLITE, POSTGRESQL, INVALID
+fun initTables(db: Database) {
+    transaction {
+        SchemaUtils.create(UserTable)
+        SchemaUtils.create(ChannelTable)
+        SchemaUtils.create(ChannelRegTable)
+        SchemaUtils.create(BotRegTable)
+        SchemaUtils.create(OnAirTable)
+    }
 }
+
 
 fun Application.module() {
 
@@ -37,21 +58,16 @@ fun Application.module() {
     if (envJdbcUrl == "jdbc:sqlite:data/bot_data.db") ensureDBDirectory()
     val dbUser = environment.config.property("db.user").getString()
     val dbPass = environment.config.property("db.password").getString()
-    val dbType = when {
-        envJdbcUrl.startsWith("jdbc:sqlite:") -> DBType.SQLITE
-        envJdbcUrl.startsWith("jdbc:postgresql:") -> DBType.POSTGRESQL
-        else -> DBType.INVALID
-    }
 
     val config = HikariConfig().apply {
         jdbcUrl = envJdbcUrl
         maximumPoolSize = 10
-        when (dbType) {
-            DBType.SQLITE -> {
+        when {
+            envJdbcUrl.startsWith("jdbc:sqlite:") -> {
                 driverClassName = "org.sqlite.JDBC"
             }
 
-            DBType.POSTGRESQL -> {
+            envJdbcUrl.startsWith("jdbc:postgresql:") -> {
                 require(dbUser != "invalidUser") { "DB_USER is required for PostgreSQL." }
                 require(dbPass != "invalidPass") { "DB_PASSWORD is required for PostgreSQL." }
                 driverClassName = "org.postgresql.Driver"
@@ -62,7 +78,7 @@ fun Application.module() {
             }
 
             else -> {
-                throw Exception("Invalid JDBC URL: $envJdbcUrl / DBType: ${dbType.name}")
+                throw Exception("Invalid JDBC URL: $envJdbcUrl")
             }
         }
         connectionTestQuery = "SELECT 1"
@@ -78,7 +94,9 @@ fun Application.module() {
 
     val dataSource = HikariDataSource(config)
 
-    val database = Database.connect(datasource = dataSource)
+    val database = Database.connect(datasource = dataSource).also{
+        initTables(it)
+    }
 
     install(ContentNegotiation) {
         json(
@@ -98,22 +116,56 @@ fun Application.module() {
         host = environment.config.property("smtp.host").getString(),
         port = environment.config.property("smtp.port").getString().toInt(),
         user = environment.config.property("smtp.user").getString(),
-        pass = environment.config.property("smtp.pass").getString(),
+        pass = environment.config.property("smtp.password").getString(),
         mailAddress = environment.config.property("smtp.mailAddress").getString()
     )
+    log.info(mailConfig.host)
 
-    val authSvc = AuthService(
-        db = database,
-        isMailActive = mailConfig.host != "none",
-        mailConfig = mailConfig,
-        logger = authLogger,
-        newUser = environment.config.property("appConfig.newUser").getString().lowercase() != "false",
-    )
-    val botSvc = BotService(db = database, logger = botLogger, apiKey = apiKey, origin = rootOrigin)
+    val module = module {
+        single { database }
+        single { SecureRandom.getInstanceStrong() }
+        single {
+            AuthService(
+                db = get<Database>(),
+                isMailActive = mailConfig.host != "none",
+                mailConfig = mailConfig,
+                logger = authLogger,
+                newUser = environment.config.property("appConfig.newUser").getString().toBoolean(),
+                origin = rootOrigin,
+                securePRNG = get()
+            )
+        }
+        single {
+            BotService(
+                db = get<Database>(),
+                logger = botLogger,
+                apiKey = apiKey,
+                origin = rootOrigin,
+                client = get()
+            )
+        }
+        single {
+            HttpClient(CIO) {
+                install(clientContentNegotiation) {
+                    json(
+                        Json {
+                            ignoreUnknownKeys = true
+                            isLenient = true
+                        }
+                    )
+                }
+            }
+        }
+    }
 
-    initAuthUnit(authSvc)
-    initBotUnit(botSvc)
+    startKoin {
+        modules(module)
+    }
+
+    initAuthUnit()
+    initBotUnit()
     initMiscUnit()
+    configureAdministration(database)
 
     routing {
         openAPI(path = "/api/v1/docs", swaggerFile = "openapi/documentation.yaml")

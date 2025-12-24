@@ -4,6 +4,7 @@ ktor:
       - net.kazugmx.ApplicationKt.module
   deployment:
     port: $SERVER_PORT:8080
+    host: "0.0.0.0"
 jwt:
   domain: "https://${CALLBACK_ORIGIN:invalidOrigin}"
   audience: "jwt-audience"

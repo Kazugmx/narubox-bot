@@ -51,4 +51,5 @@ object UserTable : IntIdTable("user_table") {
     val password = varchar("password", 100)
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
     val lastAccessAt = datetime("last_access").nullable()
+    val mailToken = varchar("mail_token", 100).nullable()
 }

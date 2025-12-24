@@ -14,24 +14,27 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentDateTime
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.koin.ktor.ext.inject
 import org.slf4j.Logger
+import java.security.SecureRandom
+import kotlin.getValue
 
 
 class AuthService(
     @Suppress("unused") db: Database,
     private val isMailActive: Boolean,
+    private val origin: String,
     private val mailConfig: MailConfig,
     private val logger: Logger,
-    private val newUser: Boolean
+    private val newUser: Boolean,
+    private val securePRNG: SecureRandom
 ) {
     init {
-        transaction {
-            SchemaUtils.create(UserTable)
-        }
-
         logger.info("initialized")
+        if (!isMailActive) logger.info("Mail is disabled.")
     }
+
+    val mailClient: MailClient? = if (isMailActive) MailClient(mailConfig) else null
 
     companion object {
         private const val MAX_ATTEMPTS = 5
@@ -45,28 +48,75 @@ class AuthService(
     }
 
 
-    suspend fun create(req: UserCreateReq) = dbQuery {
-        if (newUser) return@dbQuery UserCreateRes(status = "user registration is disabled.")
+    suspend fun create(req: UserCreateReq): UserCreateRes {
+        if (!newUser) return UserCreateRes(status = "user registration is disabled.")
         val pwHash = BCrypt.withDefaults().hashToString(16, req.password.toCharArray())
-        val existUser = UserTable.select(
-            UserTable.username
-        ).where {
-            (UserTable.username eq req.username) or (UserTable.mail eq req.mail)
-        }.singleOrNull()
+        var existUser: ResultRow? = null
+        dbQuery {
+            existUser = UserTable.select(
+                UserTable.username
+            ).where {
+                (UserTable.username eq req.username) or (UserTable.mail eq req.mail)
+            }.singleOrNull()
+        }
         if (existUser != null) {
-            return@dbQuery UserCreateRes(status = "failed")
+            return UserCreateRes(status = "failed")
         }
         try {
-            UserTable.insert {
-                it[username] = req.username
-                it[mail] = req.mail
-                it[password] = pwHash
-            }[UserTable.id].value
-            return@dbQuery UserCreateRes(status = "success")
+            var mailToken: String? = null
+            if (isMailActive && mailClient != null) {
+                val genToken = ByteArray(32)
+                securePRNG.nextBytes(genToken)
+                mailToken = genToken.toHexString()
+
+                mailClient.send(
+                    req.mail,
+                    "Mail verification - narubox-bot",
+                    """
+                        Your account has been created.
+                        This is your URL for verification: https://${origin}/api/v1/auth/login?token=${mailToken}
+                        
+                        If it doesn't work, please contact the administrator.
+                    """.trimIndent()
+                )
+            }
+            dbQuery {
+                UserTable.insert {
+                    it[username] = req.username
+                    it[mail] = req.mail
+                    it[password] = pwHash
+                    it[UserTable.mailToken] = mailToken
+                }[UserTable.id].value
+            }
+            return UserCreateRes(status = "success")
         } catch (e: Exception) {
             logger.error("error while creating user", e)
-            return@dbQuery UserCreateRes(status = "failed")
+            return UserCreateRes(status = "failed")
         }
+
+    }
+
+    suspend fun verifyCreate(token: String) = dbQuery {
+        val user = UserTable.select(
+            UserTable.id,
+            UserTable.mailToken,
+            UserTable.mail).where { UserTable.mailToken eq token }
+            .singleOrNull()
+            ?: return@dbQuery false
+
+        if (
+            token == user[UserTable.mailToken]
+        ) {
+            UserTable.update({ UserTable.id eq user[UserTable.id] }) {
+                it[mailToken] = null
+            }
+            mailClient?.send(
+                user[UserTable.mail],
+                "Welcome to narubox-bot!",
+                "Thank you for verifying your account. You can now log in to your account."
+            )
+            return@dbQuery true
+        } else return@dbQuery false
     }
 
     private val loginAttempts = mutableMapOf<String, Pair<Int, Long>>()
@@ -83,10 +133,12 @@ class AuthService(
             return@dbQuery -1
         }
 
+        //login process
+
         @Suppress("LocalVariableName")
         val FALLBACK_HASH = $$"$2b$16$C6UzMDM.H6dfI/f/IKcCcO4uP04Jw8A61uYyYV3D1h0WyZxWj96C2"
         val challUserData = UserTable
-            .select(UserTable.id, UserTable.password)
+            .select(UserTable.id, UserTable.password, UserTable.mailToken, UserTable.createdAt)
             .where { UserTable.username eq username }
             .singleOrNull()
         val targetHash = challUserData?.get(UserTable.password)
@@ -98,6 +150,10 @@ class AuthService(
                 targetHash.toCharArray()
             ).verified
 
+        if (challUserData?.get(UserTable.mailToken) != null) {
+            return@dbQuery -2
+        }
+
         if (verified && challUserData != null) {
             val intID = challUserData[UserTable.id].value
             logger.info("userid:{} is logged in.", intID)
@@ -105,6 +161,8 @@ class AuthService(
             loginAttempts.remove(username)
             return@dbQuery intID
         }
+
+        //rate limit per user
 
         val newAttempts = attempts + 1
         if (newAttempts >= MAX_ATTEMPTS) {

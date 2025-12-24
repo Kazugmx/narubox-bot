@@ -2,19 +2,16 @@ package net.kazugmx.module
 
 import io.ktor.client.*
 import io.ktor.client.call.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.serialization.json.Json
+import kotlinx.datetime.toLocalDateTime
 import net.kazugmx.schema.*
+import net.kazugmx.schema.ChannelRegTable.botID
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentDateTime
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.Logger
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -29,30 +26,11 @@ class BotService(
     @Suppress("unused") db: Database,
     private val logger: Logger,
     private val apiKey: String,
-    private val origin: String
+    private val origin: String,
+    private val client: HttpClient
 ) {
-    init {
-        transaction {
-            SchemaUtils.create(ChannelTable)
-            SchemaUtils.create(ChannelRegTable)
-            SchemaUtils.create(BotRegTable)
-            SchemaUtils.create(OnAirTable)
-            logger.info("initialized")
-        }
-    }
+    val hubUrl = "https://pubsubhubbub.appspot.com/subscribe"
 
-    companion object {
-        private val client = HttpClient(CIO) {
-            install(ContentNegotiation) {
-                json(
-                    Json {
-                        ignoreUnknownKeys = true
-                        isLenient = true
-                    }
-                )
-            }
-        }
-    }
 
     private suspend fun <T> dbQuery(block: suspend () -> T): T =
         newSuspendedTransaction(Dispatchers.IO) { block() }
@@ -216,7 +194,6 @@ class BotService(
             }
 
             val endpointID: String = hasRegisteredOnChannels.endpointID ?: return false
-            val hubUrl = "https://pubsubhubbub.appspot.com/subscribe"
             val topicUrl = "https://www.youtube.com/xml/feeds/videos.xml?channel_id=$channelID"
             val callbackUrl = "https://${origin}/api/v1/bot/pubsub/${endpointID}"
 
@@ -260,6 +237,38 @@ class BotService(
         if (isAvailable == null) return@dbQuery false
         ChannelRegTable.deleteWhere {
             (ChannelRegTable.botID eq UUID.fromString(botID)) and (ChannelRegTable.channelID eq channelID)
+        }
+    }
+
+    suspend fun refreshChannel() = dbQuery {
+        val channels = ChannelTable.selectAll()
+
+        channels.forEach {
+            val channelID = it[ChannelTable.channelID]
+            val endpointID = it[ChannelTable.endpointID]
+
+            val topicUrl = "https://www.youtube.com/xml/feeds/videos.xml?channel_id=$channelID"
+            val callbackUrl = "https://${origin}/api/v1/bot/pubsub/${endpointID}"
+
+            val a = client.post(hubUrl) {
+                url {
+                    parameters.append("hub.callback", callbackUrl)
+                    parameters.append("hub.lease_seconds", "864000")
+                    parameters.append("hub.mode", "subscribe")
+                    parameters.append("hub.topic", topicUrl)
+                    parameters.append("hub.verify", "sync")
+                }
+            }
+            ChannelTable.update({
+                ChannelTable.channelID eq channelID
+            }) { record ->
+                record[lastUpdate] = kotlinx.datetime.Clock.System.now()
+                    .toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+            }
+            logger.info(
+                "status: {} / Subscribe to {} is refreshed.",
+                a.status.value, channelID
+            )
         }
     }
 
