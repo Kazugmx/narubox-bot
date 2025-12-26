@@ -6,9 +6,12 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
+import io.ktor.server.plugins.origin
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import korlibs.time.milliseconds
+import korlibs.time.millisecondsLong
 import net.kazugmx.module.AuthService
 import net.kazugmx.module.tryAuth
 import net.kazugmx.schema.LoginReq
@@ -16,6 +19,7 @@ import net.kazugmx.schema.UserCreateReq
 import org.koin.ktor.ext.inject
 import java.security.SecureRandom
 import java.util.*
+import kotlin.time.Duration.Companion.hours
 
 fun Application.initAuthUnit() {
     val authService by inject<AuthService>()
@@ -37,7 +41,7 @@ fun Application.initAuthUnit() {
         .withAudience(jwtAudience)
         .withIssuer(jwtIssuer)
         .withClaim("userid", id)
-        .withExpiresAt(Date(System.currentTimeMillis() + 60000 * 30 * 4))
+        .withExpiresAt(Date(System.currentTimeMillis() + 1.hours.millisecondsLong))
         .sign(Algorithm.HMAC256(jwtSecret))
 
 
@@ -87,10 +91,10 @@ fun Application.initAuthUnit() {
             route("login") {
                 get {
                     val token = call.queryParameters["token"] ?: return@get call.respond(HttpStatusCode.BadRequest)
-                    val status =authService.verifyCreate(token)
-                    if(status){
+                    val status = authService.verifyCreate(token)
+                    if (status) {
                         log.info("MailToken is verified.")
-                    }else{
+                    } else {
                         log.info("MailToken is not verified.")
                         return@get call.respond(HttpStatusCode.Forbidden)
                     }
@@ -99,18 +103,18 @@ fun Application.initAuthUnit() {
 
                 post {
                     val req = call.receive<LoginReq>()
-                    when (val id = authService.login(req)) {
+                    val loginAddr = call.request.origin.remoteAddress
+                    when (val id = authService.login(req, loginAddr)) {
                         //login fail
                         -1 -> return@post call.respond(HttpStatusCode.Unauthorized)
                         //mailToken is not verified
                         -2 -> return@post call.respond(
                             HttpStatusCode.Forbidden,
-                            "MailToken is not verified. Please try again."
+                            "mailToken is not verified. Please check your mail."
                         )
                         //login success
                         else -> {
                             val token = generateToken(id)
-                            call.response.header(HttpHeaders.Authorization, "Bearer $token")
                             return@post call.respond(
                                 HttpStatusCode.OK, mapOf(
                                     "token" to token

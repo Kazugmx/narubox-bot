@@ -9,15 +9,15 @@ import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.response.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import net.kazugmx.schema.*
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentDateTime
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import org.koin.ktor.ext.inject
 import org.slf4j.Logger
 import java.security.SecureRandom
-import kotlin.getValue
+import java.util.concurrent.ConcurrentHashMap
 
 
 class AuthService(
@@ -100,7 +100,8 @@ class AuthService(
         val user = UserTable.select(
             UserTable.id,
             UserTable.mailToken,
-            UserTable.mail).where { UserTable.mailToken eq token }
+            UserTable.mail
+        ).where { UserTable.mailToken eq token }
             .singleOrNull()
             ?: return@dbQuery false
 
@@ -119,61 +120,67 @@ class AuthService(
         } else return@dbQuery false
     }
 
-    private val loginAttempts = mutableMapOf<String, Pair<Int, Long>>()
+    private val loginAttempts = ConcurrentHashMap<String, Pair<Int, Long>>()
 
-    suspend fun login(loginReq: LoginReq): Int = dbQuery {
+    suspend fun login(loginReq: LoginReq,addr:String): Int {
         val username = loginReq.username
         val now = System.currentTimeMillis()
 
-        val (attempts, unlockTime) =
+        val (_, unlockTime) =
             loginAttempts[username] ?: (0 to 0L)
 
         if (now < unlockTime) {
             logger.warn("Login locked: {}", username)
-            return@dbQuery -1
+            return -1
         }
 
         //login process
+        val userRow = dbQuery {
+            UserTable
+                .select(UserTable.id, UserTable.password, UserTable.mailToken, UserTable.createdAt)
+                .where { UserTable.username eq username }
+                .singleOrNull()
+        }
 
         @Suppress("LocalVariableName")
         val FALLBACK_HASH = $$"$2b$16$C6UzMDM.H6dfI/f/IKcCcO4uP04Jw8A61uYyYV3D1h0WyZxWj96C2"
-        val challUserData = UserTable
-            .select(UserTable.id, UserTable.password, UserTable.mailToken, UserTable.createdAt)
-            .where { UserTable.username eq username }
-            .singleOrNull()
-        val targetHash = challUserData?.get(UserTable.password)
+        val targetHash = userRow?.get(UserTable.password)
             ?: FALLBACK_HASH
 
-        val verified = BCrypt
-            .verifyer().verify(
-                loginReq.password.toCharArray(),
-                targetHash.toCharArray()
-            ).verified
-
-        if (challUserData?.get(UserTable.mailToken) != null) {
-            return@dbQuery -2
+        val verified = withContext(Dispatchers.Default){
+            BCrypt
+                .verifyer().verify(
+                    loginReq.password.toCharArray(),
+                    targetHash.toCharArray()
+                ).verified
         }
 
-        if (verified && challUserData != null) {
-            val intID = challUserData[UserTable.id].value
-            logger.info("userid:{} is logged in.", intID)
-            updateTime(intID)
-            loginAttempts.remove(username)
-            return@dbQuery intID
+        if (!verified || userRow == null) {
+            val (attemptsAfter, lockedUntil) = loginAttempts.compute(username) { _, prev ->
+                val (attempts, prevUnlock) = prev ?: (0 to 0L)
+                val newAttempts = attempts + 1
+                if (newAttempts >= MAX_ATTEMPTS) {
+                    newAttempts to (now + LOCK_TIME_MS)
+                } else {
+                    newAttempts to 0L
+                }
+            }!!
+            if (lockedUntil > 0L) {
+                logger.warn("Login locked: {} (attempt {}/{})", username, attemptsAfter, MAX_ATTEMPTS)
+            } else {
+                logger.warn("Login failed: {} (attempt {}/{})", username, attemptsAfter, MAX_ATTEMPTS)
+            }
+            return -1
         }
+        if(userRow[UserTable.mailToken] != null) return -2
 
-        //rate limit per user
-
-        val newAttempts = attempts + 1
-        if (newAttempts >= MAX_ATTEMPTS) {
-            loginAttempts[username] = (newAttempts to (now + LOCK_TIME_MS))
-            logger.warn("Login locked: {}", username)
-        } else {
-            loginAttempts[username] = (newAttempts to 0L)
-            logger.warn("Login failed: {} (attempt {}/{})", username, newAttempts, MAX_ATTEMPTS)
+        dbQuery {
+            updateTime(userRow[UserTable.id].value)
         }
-        logger.info("failed to login.")
-        return@dbQuery -1
+        loginAttempts.remove(username)
+
+        logger.info("userid:{} is logged in.",userRow[UserTable.id].value)
+        return userRow[UserTable.id].value
     }
 
 
