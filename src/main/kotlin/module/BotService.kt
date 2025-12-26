@@ -4,10 +4,12 @@ import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
+import korlibs.time.seconds
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.datetime.toLocalDateTime
 import net.kazugmx.schema.*
-import net.kazugmx.schema.ChannelRegTable.botID
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentDateTime
@@ -377,32 +379,57 @@ class BotService(
         )
     }
 
-    suspend fun notifyToBots(videoID: String, endpointID: String): Boolean {
-        val isValidEndpoint = dbQuery {
-            ChannelTable.select(ChannelTable.endpointID).where {
-                ChannelTable.endpointID eq endpointID
-            }.singleOrNull()?.let { true } ?: false
-        }
-        if (!isValidEndpoint) return false
-
-        val queryRes = youtubeVideoQuery(videoID) ?: return false
-        val status = classifyStatusToNotify(queryRes)
-        if (status.toDeliver) {
-            val botHookList: Map<String, String> = dbQuery {
-                (ChannelRegTable innerJoin BotRegTable)
-                    .select(BotRegTable.wsUrl, BotRegTable.mentionRoleID)
-                    .where { ChannelRegTable.channelID eq queryRes.channelID }
-                    .associate { it[BotRegTable.wsUrl] to it[BotRegTable.mentionRoleID] }
+    fun notifyToBots(videoID: String, endpointID: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val isValidEndpoint = dbQuery {
+                ChannelTable.select(ChannelTable.endpointID).where {
+                    ChannelTable.endpointID eq endpointID
+                }.singleOrNull()?.let { true } ?: false
             }
-            for (query in botHookList) {
-                client.post(query.key) {
-                    contentType(ContentType.Application.Json)
-                    setBody(buildWebhookPayload(queryRes, query.value, deliverState = status))
+            if (!isValidEndpoint) return@launch
+
+            val previousType = dbQuery {
+                OnAirTable.select(OnAirTable.previousState).where { OnAirTable.videoID eq videoID }.singleOrNull()
+                    ?.let { it[OnAirTable.previousState] } ?: DeliverState.ERROR
+            }
+
+            //main logic to notify
+            var queryRes: YtResponse.QueryData? = youtubeVideoQuery(videoID)
+
+            //retry per 20sec if not status changed
+            var waitPeriod = 0L
+            for (i in 0..3) {
+                if (queryRes?.type != previousType || previousType == DeliverState.VIDEO.label) break
+                logger.info("Retrying to query video: {} / retryTime: {}",videoID,i+1)
+                waitPeriod += 20.seconds.inWholeMilliseconds
+                Thread.sleep(waitPeriod)
+                youtubeVideoQuery(videoID)?.let { queryRes = it }
+            }
+
+            if (
+                queryRes == null || queryRes.type != previousType || previousType == DeliverState.VIDEO.label
+            ) return@launch
+
+            val status = classifyStatusToNotify(queryRes)
+
+            //deliver
+            if (status.toDeliver) {
+                val botHookList: Map<String, String> = dbQuery {
+                    (ChannelRegTable innerJoin BotRegTable)
+                        .select(BotRegTable.wsUrl, BotRegTable.mentionRoleID)
+                        .where { ChannelRegTable.channelID eq queryRes.channelID }
+                        .associate { it[BotRegTable.wsUrl] to it[BotRegTable.mentionRoleID] }
                 }
-            }
+                for (query in botHookList) {
+                    client.post(query.key) {
+                        contentType(ContentType.Application.Json)
+                        setBody(buildWebhookPayload(queryRes, query.value, deliverState = status))
+                    }
+                }
 
-            return true
+                return@launch
+            }
+            return@launch
         }
-        return false
     }
 }
