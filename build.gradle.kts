@@ -19,7 +19,7 @@ kotlin{
 }
 
 group = "net.kazugmx.narubox-bot"
-version = "1.3.6"
+version = "1.3.8"
 
 application {
     mainClass = "net.kazugmx.ApplicationKt"
@@ -79,7 +79,7 @@ repositories {
     }
     maven {
         url = uri("https://packages.confluent.io/maven")
-        name = "confluence"
+        name = "confluent"
     }
 }
 

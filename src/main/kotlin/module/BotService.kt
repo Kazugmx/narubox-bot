@@ -5,8 +5,9 @@ import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import korlibs.time.seconds
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.datetime.toLocalDateTime
 import net.kazugmx.schema.*
@@ -18,6 +19,7 @@ import org.slf4j.Logger
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.KeyGenerator
 import javax.crypto.Mac
 import kotlin.uuid.ExperimentalUuidApi
@@ -275,6 +277,7 @@ class BotService(
     }
 
     private suspend fun youtubeVideoQuery(videoID: String): YtResponse.QueryData? {
+
         val res = client.get("https://www.googleapis.com/youtube/v3/videos") {
             url {
                 parameters.append("part", "snippet,liveStreamingDetails")
@@ -379,40 +382,37 @@ class BotService(
         )
     }
 
-    fun notifyToBots(videoID: String, endpointID: String) {
-        CoroutineScope(Dispatchers.IO).launch {
+    private val processingVideos = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
+
+    suspend fun notifyToBots(videoID: String, endpointID: String) {
+        if (!processingVideos.add(videoID)) {
+            logger.info("Skipped duplicate processing for video: {}", videoID)
+            return
+        }
+        try {
             val isValidEndpoint = dbQuery {
                 ChannelTable.select(ChannelTable.endpointID).where {
                     ChannelTable.endpointID eq endpointID
                 }.singleOrNull()?.let { true } ?: false
             }
-            if (!isValidEndpoint) return@launch
-
+            if (!isValidEndpoint) return
             val previousType = dbQuery {
                 OnAirTable.select(OnAirTable.previousState).where { OnAirTable.videoID eq videoID }.singleOrNull()
                     ?.let { it[OnAirTable.previousState] } ?: DeliverState.ERROR
             }
-
             //main logic to notify
             var queryRes: YtResponse.QueryData? = youtubeVideoQuery(videoID)
-
-            //retry per 20sec if not status changed
             var waitPeriod = 0L
-            for (i in 0..3) {
+            // 0,20,40(60)sec
+            for (i in 0..2) {
                 if (queryRes?.type != previousType || previousType == DeliverState.VIDEO.label) break
-                logger.info("Retrying to query video: {} / retryTime: {}",videoID,i+1)
                 waitPeriod += 20.seconds.inWholeMilliseconds
-                Thread.sleep(waitPeriod)
+                logger.info("Retrying to query video: {} / retryTime: {} /delay: {}", videoID, i + 1, waitPeriod)
+                delay(waitPeriod)
                 youtubeVideoQuery(videoID)?.let { queryRes = it }
             }
-
-            if (
-                queryRes == null || queryRes.type != previousType || previousType == DeliverState.VIDEO.label
-            ) return@launch
-
+            queryRes ?: return
             val status = classifyStatusToNotify(queryRes)
-
-            //deliver
             if (status.toDeliver) {
                 val botHookList: Map<String, String> = dbQuery {
                     (ChannelRegTable innerJoin BotRegTable)
@@ -420,16 +420,27 @@ class BotService(
                         .where { ChannelRegTable.channelID eq queryRes.channelID }
                         .associate { it[BotRegTable.wsUrl] to it[BotRegTable.mentionRoleID] }
                 }
-                for (query in botHookList) {
-                    client.post(query.key) {
-                        contentType(ContentType.Application.Json)
-                        setBody(buildWebhookPayload(queryRes, query.value, deliverState = status))
+                coroutineScope {
+                    for (query in botHookList) {
+                        launch {
+                            try {
+                                client.post(query.key) {
+                                    contentType(ContentType.Application.Json)
+                                    setBody(buildWebhookPayload(queryRes, query.value, deliverState = status))
+                                }
+                            } catch (e: Exception) {
+                                logger.error("Failed to notify webhook: ${query.key}", e)
+                            }
+                        }
                     }
                 }
-
-                return@launch
+                return
             }
-            return@launch
+            return
+        } finally {
+            // 処理が終わったら（成功しても失敗しても）リストから削除する
+            processingVideos.remove(videoID)
         }
+
     }
 }

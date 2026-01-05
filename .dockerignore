@@ -1,0 +1,28 @@
+# Gradle build artifacts
+build/
+
+# IDE configuration
+.idea/
+.kotlin/
+
+# Version control
+.git/
+.github/
+.gitignore
+
+# Logs
+logs/
+
+# Documentation
+docs/
+
+# Tests
+src/test/
+
+# Local configuration examples
+docker-compose.yml.example
+
+# Miscellaneous
+daemon.json
+README.md
+.dockerignore

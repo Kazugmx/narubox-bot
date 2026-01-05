@@ -1,8 +1,18 @@
 # --- build ---
 FROM eclipse-temurin:21-jdk AS builder
 WORKDIR /build
-COPY . .
-RUN ./gradlew clean buildFatJar --no-daemon
+
+
+COPY gradlew settings.gradle* build.gradle* gradle.properties* /build/
+COPY gradle /build/gradle
+
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew --no-daemon -q help
+
+COPY . /build/
+
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew buildFatJar --no-daemon
 
 # --- runtime ---
 FROM gcr.io/distroless/java21
