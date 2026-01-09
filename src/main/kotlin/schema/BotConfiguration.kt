@@ -24,8 +24,13 @@ data class BotRegisterRes(
 data class BotListRes(
     val botID: String,
     val label: String,
-    val wsUrl: String,
     val mentionRoleID: String
+)
+
+@Serializable
+data class BotInfoRes(
+    val botInfo: BotListRes,
+    val channels: List<String>
 )
 
 @Serializable

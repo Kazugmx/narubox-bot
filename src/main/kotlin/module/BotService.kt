@@ -96,7 +96,6 @@ class BotService(
             BotListRes(
                 botID = it[BotRegTable.id].value.toString(),
                 label = it[BotRegTable.label],
-                wsUrl = it[BotRegTable.wsUrl],
                 mentionRoleID = it[BotRegTable.mentionRoleID]
             )
         }
@@ -137,18 +136,30 @@ class BotService(
         }
     }
 
-    suspend fun getChannels(botID: String, userID: Int): List<String> = dbQuery {
+    @Suppress("unused")
+    suspend fun getBotInfo(botID: String, userID: Int): BotInfoRes? = dbQuery {
         @Suppress("LocalVariableName")
         val botID_u = UUID.fromString(botID)
-        val owner = BotRegTable.select(BotRegTable.ownerID).where {
+        val botData = BotRegTable.select(
+            BotRegTable.ownerID, BotRegTable.id, BotRegTable.mentionRoleID,
+            BotRegTable.label
+        ).where {
             (BotRegTable.id eq botID_u) and (BotRegTable.ownerID eq userID)
         }
             .singleOrNull()
-        if (owner == null) return@dbQuery emptyList()
-        ChannelRegTable.select(ChannelRegTable.channelID)
-            .where {
-                (ChannelRegTable.botID eq botID_u)
-            }.map { it[ChannelRegTable.channelID] }
+        if (botData == null) return@dbQuery null
+        val botDataInfo = BotListRes(
+            botID = botData[BotRegTable.id].value.toString(),
+            label = botData[BotRegTable.label],
+            mentionRoleID = botData[BotRegTable.mentionRoleID]
+        )
+        val channels:List<String> = ChannelRegTable.select(ChannelRegTable.channelID).where {
+            (ChannelRegTable.botID eq botID_u)
+        }.map {
+            it[ChannelRegTable.channelID]
+        }
+
+        return@dbQuery BotInfoRes(botInfo = botDataInfo, channels = channels)
     }
 
     suspend fun registerChannel(botID: String, subReq: SubscribeRequest, userID: Int = -1): Boolean {

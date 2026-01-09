@@ -43,7 +43,7 @@ fun Application.initBotUnit() {
 
     routing {
         route("/api/v1/bot") {
-            route("pubsub/{endpointID}"){
+            route("pubsub/{endpointID}") {
                 get {
                     val chall = call.queryParameters["hub.challenge"]
                     if (chall != null) {
@@ -67,7 +67,9 @@ fun Application.initBotUnit() {
 
                     feed.entry?.forEach {
                         log.info("channelID {} / https://www.youtube.com/watch?v={}", it.channelID, it.videoID)
-                        it.videoID?.let { videoID -> backScope.launch { bot.notifyToBots(videoID = videoID,endpointID=endpoint) } }
+                        it.videoID?.let { videoID ->
+                            backScope.launch { bot.notifyToBots(videoID = videoID, endpointID = endpoint) }
+                        }
                     }
                     call.respond(HttpStatusCode.OK)
                 }
@@ -101,8 +103,12 @@ fun Application.initBotUnit() {
                         call.tryAuth { _, userID ->
                             val botID =
                                 call.parameters["botID"] ?: return@tryAuth call.respond(HttpStatusCode.BadRequest)
-                            val channels = bot.getChannels(botID, userID)
-                            call.respond(HttpStatusCode.OK, mapOf("channels" to channels))
+                            val data =
+                                bot.getBotInfo(botID, userID) ?: return@tryAuth call.respond(HttpStatusCode.NotFound)
+                            call.respond(
+                                HttpStatusCode.OK,
+                                data
+                            )
                         }
                     }
                     delete {
