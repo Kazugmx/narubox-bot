@@ -129,6 +129,7 @@ class BotService(
     }
 
     suspend fun unregisterBot(botID: String, userID: Int) = dbQuery {
+        ChannelRegTable.deleteWhere { ChannelRegTable.botID eq UUID.fromString(botID) }
         BotRegTable.deleteWhere {
             logger.info("Bot {} unregistered by user {}", botID, userID)
             BotRegTable.id eq UUID.fromString(botID) and
@@ -153,7 +154,7 @@ class BotService(
             label = botData[BotRegTable.label],
             mentionRoleID = botData[BotRegTable.mentionRoleID]
         )
-        val channels:List<String> = ChannelRegTable.select(ChannelRegTable.channelID).where {
+        val channels: List<String> = ChannelRegTable.select(ChannelRegTable.channelID).where {
             (ChannelRegTable.botID eq botID_u)
         }.map {
             it[ChannelRegTable.channelID]
