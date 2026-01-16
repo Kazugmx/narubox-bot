@@ -4,6 +4,7 @@ ktor:
       - net.kazugmx.ApplicationKt.module
   deployment:
     port: $SERVER_PORT:8080
+    host: "0.0.0.0"
 jwt:
   domain: "https://${CALLBACK_ORIGIN:invalidOrigin}"
   audience: "jwt-audience"
@@ -11,8 +12,18 @@ jwt:
   issuer: "narubox-auth"
   secret: "${JWT_SECRET:invalidSecret}"
 db:
-  url: "jdbc:sqlite:data/bot_data.db"
+  url: "${JDBC_URL:jdbc:sqlite:data/bot_data.db}"
+  user: "${DB_USER:invalidUser}"
+  password: "${DB_PASSWORD:invalidPass}"
+smtp:
+  host: "${SMTP_HOST:none}"
+  port: "${SMTP_PORT:-1}"
+  user: "${SMTP_USER:none}"
+  mailAddress: "${SMTP_MAIL_ADDRESS:none}"
+  password: "${SMTP_PASSWORD:none}"
 youtube:
   apikey: "${APIKEY:invalidKey}"
   callbackOrigin: "${CALLBACK_ORIGIN:invalidOrigin}"
   uri_master: "${URI_MASTER:invalidURIMaster}"
+appConfig:
+  newUser: "${NEW_USER:false}"

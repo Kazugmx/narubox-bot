@@ -9,7 +9,7 @@ val bcrypt_version: String by project
 plugins {
     kotlin("jvm") version "2.2.20"
     id("io.ktor.plugin") version "3.3.2"
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.20"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.3.0"
     id("com.gradleup.shadow") version "9.2.2"
     application
 }
@@ -19,7 +19,7 @@ kotlin{
 }
 
 group = "net.kazugmx.narubox-bot"
-version = "1.1.2-PROD"
+version = "1.4.1"
 
 application {
     mainClass = "net.kazugmx.ApplicationKt"
@@ -52,17 +52,35 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-kotlin-datetime")
     implementation("com.h2database:h2:$h2_version")
     implementation("com.zaxxer:HikariCP:7.0.2")
-    //implementation()
-    runtimeOnly("org.xerial:sqlite-jdbc:3.50.3.0")
     implementation("org.postgresql:postgresql:$postgres_version")
     implementation("io.ktor:ktor-server-netty")
     implementation("ch.qos.logback:logback-classic:$logback_version")
     implementation("io.ktor:ktor-server-config-yaml")
     implementation("io.ktor:ktor-client-content-negotiation:3.3.2")
     implementation("io.ktor:ktor-serialization-kotlinx-xml:3.3.2")
-    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
+    api("org.jetbrains.kotlinx:kotlinx-datetime:0.6.2")
+    implementation("com.sun.mail:jakarta.mail:2.0.2")
+    implementation("io.github.flaxoos:ktor-server-task-scheduling-core:2.2.1")
+    implementation("io.github.flaxoos:ktor-server-task-scheduling-jdbc:2.2.1")
+    implementation("io.insert-koin:koin-ktor:4.1.2-Beta1")
+    implementation("io.insert-koin:koin-logger-slf4j:4.1.2-Beta1")
     testImplementation("io.ktor:ktor-server-test-host")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
+
+
+    //JDBC Runtimes
+    runtimeOnly("org.postgresql:postgresql:42.7.7")
+    runtimeOnly("org.xerial:sqlite-jdbc:3.50.3.0")
+}
+repositories {
+    maven {
+        url = uri("https://repo1.maven.org/maven2")
+        name = "MavenCentral"
+    }
+    maven {
+        url = uri("https://packages.confluent.io/maven")
+        name = "confluent"
+    }
 }
 
 tasks.shadowJar {

@@ -6,26 +6,44 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
+import io.ktor.server.plugins.origin
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import korlibs.time.milliseconds
+import korlibs.time.millisecondsLong
 import net.kazugmx.module.AuthService
 import net.kazugmx.module.tryAuth
 import net.kazugmx.schema.LoginReq
 import net.kazugmx.schema.UserCreateReq
+import org.koin.ktor.ext.inject
+import java.security.SecureRandom
 import java.util.*
+import kotlin.time.Duration.Companion.hours
 
-fun Application.initAuthUnit(authService: AuthService) {
+fun Application.initAuthUnit() {
+    val authService by inject<AuthService>()
+    val securePRNG: SecureRandom by inject<SecureRandom>()
+
     val jwtIssuer = environment.config.property("jwt.issuer").getString()
     val jwtAudience = environment.config.property("jwt.audience").getString()
     val jwtRealm = environment.config.property("jwt.realm").getString()
-    val jwtSecret = environment.config.property("jwt.secret").getString()
+    val envJwtSecret = environment.config.property("jwt.secret").getString()
+    val jwtSecret = if (envJwtSecret == "invalidSecret" || envJwtSecret.isBlank()) {
+        log.warn("JWT Secret is not configured! Using temporarily generated secret key.")
+        val genToken = ByteArray(32)
+        securePRNG.nextBytes(genToken)
+        genToken.toHexString()
+    } else envJwtSecret
+
+
     fun generateToken(id: Int) = JWT.create()
         .withAudience(jwtAudience)
         .withIssuer(jwtIssuer)
         .withClaim("userid", id)
-        .withExpiresAt(Date(System.currentTimeMillis() + 60000 * 30 * 4))
+        .withExpiresAt(Date(System.currentTimeMillis() + 1.hours.millisecondsLong))
         .sign(Algorithm.HMAC256(jwtSecret))
+
 
     authentication {
         jwt("auth-jwt") {
@@ -67,23 +85,43 @@ fun Application.initAuthUnit(authService: AuthService) {
                 post {
                     val req = call.receive<UserCreateReq>()
                     val result = authService.create(req)
-                    if (result.status == "failed") return@post call.respond(HttpStatusCode.BadRequest)
-                    call.respond(HttpStatusCode.OK, result)
+                    call.respond(HttpStatusCode.Created, result)
                 }
             }
             route("login") {
+                get {
+                    val token = call.queryParameters["token"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+                    val status = authService.verifyCreate(token)
+                    if (status) {
+                        log.info("MailToken is verified.")
+                    } else {
+                        log.info("MailToken is not verified.")
+                        return@get call.respond(HttpStatusCode.Forbidden)
+                    }
+                    return@get call.respond(HttpStatusCode.OK)
+                }
+
                 post {
                     val req = call.receive<LoginReq>()
-                    val id = authService.login(req)
-                    if (id != -1) {
-                        val token = generateToken(id)
-                        call.response.header(HttpHeaders.Authorization, "Bearer $token")
-                        return@post call.respond(
-                            HttpStatusCode.OK, mapOf(
-                                "token" to token
-                            )
+                    val loginAddr = call.request.origin.remoteAddress
+                    when (val id = authService.login(req, loginAddr)) {
+                        //login fail
+                        -1 -> return@post call.respond(HttpStatusCode.Unauthorized)
+                        //mailToken is not verified
+                        -2 -> return@post call.respond(
+                            HttpStatusCode.Forbidden,
+                            "mailToken is not verified. Please check your mail."
                         )
-                    } else return@post call.respond(HttpStatusCode.Unauthorized)
+                        //login success
+                        else -> {
+                            val token = generateToken(id)
+                            return@post call.respond(
+                                HttpStatusCode.OK, mapOf(
+                                    "token" to token
+                                )
+                            )
+                        }
+                    }
                 }
             }
         }

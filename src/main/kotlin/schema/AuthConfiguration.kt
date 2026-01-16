@@ -36,10 +36,20 @@ data class SelfRes(
     val lastAccess: LocalDateTime? = null
 )
 
+data class MailConfig(
+    val host: String,
+    val port: Int,
+    val user: String,
+    val pass: String,
+    val mailAddress: String
+)
+
+
 object UserTable : IntIdTable("user_table") {
     val username = varchar("username", 50).uniqueIndex()
     val mail = varchar("mail", length = 255).uniqueIndex()
     val password = varchar("password", 100)
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
     val lastAccessAt = datetime("last_access").nullable()
+    val mailToken = varchar("mail_token", 100).nullable()
 }

@@ -2,23 +2,24 @@ package net.kazugmx.module
 
 import io.ktor.client.*
 import io.ktor.client.call.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
+import korlibs.time.seconds
 import kotlinx.coroutines.Dispatchers
-import kotlinx.serialization.json.Json
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.datetime.toLocalDateTime
 import net.kazugmx.schema.*
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentDateTime
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.Logger
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.KeyGenerator
 import javax.crypto.Mac
 import kotlin.uuid.ExperimentalUuidApi
@@ -29,30 +30,11 @@ class BotService(
     @Suppress("unused") db: Database,
     private val logger: Logger,
     private val apiKey: String,
-    private val origin: String
+    private val origin: String,
+    private val client: HttpClient
 ) {
-    init {
-        transaction {
-            SchemaUtils.create(ChannelTable)
-            SchemaUtils.create(ChannelRegTable)
-            SchemaUtils.create(BotRegTable)
-            SchemaUtils.create(OnAirTable)
-            logger.info("initialized")
-        }
-    }
+    val hubUrl = "https://pubsubhubbub.appspot.com/subscribe"
 
-    companion object {
-        private val client = HttpClient(CIO) {
-            install(ContentNegotiation) {
-                json(
-                    Json {
-                        ignoreUnknownKeys = true
-                        isLenient = true
-                    }
-                )
-            }
-        }
-    }
 
     private suspend fun <T> dbQuery(block: suspend () -> T): T =
         newSuspendedTransaction(Dispatchers.IO) { block() }
@@ -114,7 +96,6 @@ class BotService(
             BotListRes(
                 botID = it[BotRegTable.id].value.toString(),
                 label = it[BotRegTable.label],
-                wsUrl = it[BotRegTable.wsUrl],
                 mentionRoleID = it[BotRegTable.mentionRoleID]
             )
         }
@@ -148,6 +129,7 @@ class BotService(
     }
 
     suspend fun unregisterBot(botID: String, userID: Int) = dbQuery {
+        ChannelRegTable.deleteWhere { ChannelRegTable.botID eq UUID.fromString(botID) }
         BotRegTable.deleteWhere {
             logger.info("Bot {} unregistered by user {}", botID, userID)
             BotRegTable.id eq UUID.fromString(botID) and
@@ -155,18 +137,30 @@ class BotService(
         }
     }
 
-    suspend fun getChannels(botID: String, userID: Int): List<String> = dbQuery {
+    @Suppress("unused")
+    suspend fun getBotInfo(botID: String, userID: Int): BotInfoRes? = dbQuery {
         @Suppress("LocalVariableName")
         val botID_u = UUID.fromString(botID)
-        val owner = BotRegTable.select(BotRegTable.ownerID).where {
+        val botData = BotRegTable.select(
+            BotRegTable.ownerID, BotRegTable.id, BotRegTable.mentionRoleID,
+            BotRegTable.label
+        ).where {
             (BotRegTable.id eq botID_u) and (BotRegTable.ownerID eq userID)
         }
             .singleOrNull()
-        if (owner == null) return@dbQuery emptyList()
-        ChannelRegTable.select(ChannelRegTable.channelID)
-            .where {
-                (ChannelRegTable.botID eq botID_u)
-            }.map { it[ChannelRegTable.channelID] }
+        if (botData == null) return@dbQuery null
+        val botDataInfo = BotListRes(
+            botID = botData[BotRegTable.id].value.toString(),
+            label = botData[BotRegTable.label],
+            mentionRoleID = botData[BotRegTable.mentionRoleID]
+        )
+        val channels: List<String> = ChannelRegTable.select(ChannelRegTable.channelID).where {
+            (ChannelRegTable.botID eq botID_u)
+        }.map {
+            it[ChannelRegTable.channelID]
+        }
+
+        return@dbQuery BotInfoRes(botInfo = botDataInfo, channels = channels)
     }
 
     suspend fun registerChannel(botID: String, subReq: SubscribeRequest, userID: Int = -1): Boolean {
@@ -216,7 +210,6 @@ class BotService(
             }
 
             val endpointID: String = hasRegisteredOnChannels.endpointID ?: return false
-            val hubUrl = "https://pubsubhubbub.appspot.com/subscribe"
             val topicUrl = "https://www.youtube.com/xml/feeds/videos.xml?channel_id=$channelID"
             val callbackUrl = "https://${origin}/api/v1/bot/pubsub/${endpointID}"
 
@@ -231,7 +224,7 @@ class BotService(
             }
 
             dbQuery {
-                if (!hasRegisteredOnBot) ChannelTable.insert {
+                if (!hasRegisteredOnChannels.isAvailable) ChannelTable.insert {
                     it[ChannelTable.channelID] = channelID
                     it[ChannelTable.endpointID] = endpointID
                 }
@@ -263,7 +256,40 @@ class BotService(
         }
     }
 
+    suspend fun refreshChannel() = dbQuery {
+        val channels = ChannelTable.selectAll()
+
+        channels.forEach {
+            val channelID = it[ChannelTable.channelID]
+            val endpointID = it[ChannelTable.endpointID]
+
+            val topicUrl = "https://www.youtube.com/xml/feeds/videos.xml?channel_id=$channelID"
+            val callbackUrl = "https://${origin}/api/v1/bot/pubsub/${endpointID}"
+
+            val a = client.post(hubUrl) {
+                url {
+                    parameters.append("hub.callback", callbackUrl)
+                    parameters.append("hub.lease_seconds", "864000")
+                    parameters.append("hub.mode", "subscribe")
+                    parameters.append("hub.topic", topicUrl)
+                    parameters.append("hub.verify", "sync")
+                }
+            }
+            ChannelTable.update({
+                ChannelTable.channelID eq channelID
+            }) { record ->
+                record[lastUpdate] = kotlinx.datetime.Clock.System.now()
+                    .toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+            }
+            logger.info(
+                "status: {} / Subscribe to {} is refreshed.",
+                a.status.value, channelID
+            )
+        }
+    }
+
     private suspend fun youtubeVideoQuery(videoID: String): YtResponse.QueryData? {
+
         val res = client.get("https://www.googleapis.com/youtube/v3/videos") {
             url {
                 parameters.append("part", "snippet,liveStreamingDetails")
@@ -368,32 +394,65 @@ class BotService(
         )
     }
 
-    suspend fun notifyToBots(videoID: String, endpointID: String): Boolean {
-        val isValidEndpoint = dbQuery {
-            ChannelTable.select(ChannelTable.endpointID).where {
-                ChannelTable.endpointID eq endpointID
-            }.singleOrNull()?.let { true } ?: false
-        }
-        if (!isValidEndpoint) return false
+    private val processingVideos = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
 
-        val queryRes = youtubeVideoQuery(videoID) ?: return false
-        val status = classifyStatusToNotify(queryRes)
-        if (status.toDeliver) {
-            val botHookList: Map<String, String> = dbQuery {
-                (ChannelRegTable innerJoin BotRegTable)
-                    .select(BotRegTable.wsUrl, BotRegTable.mentionRoleID)
-                    .where { ChannelRegTable.channelID eq queryRes.channelID }
-                    .associate { it[BotRegTable.wsUrl] to it[BotRegTable.mentionRoleID] }
+    suspend fun notifyToBots(videoID: String, endpointID: String) {
+        if (!processingVideos.add(videoID)) {
+            logger.info("Skipped duplicate processing for video: {}", videoID)
+            return
+        }
+        try {
+            val isValidEndpoint = dbQuery {
+                ChannelTable.select(ChannelTable.endpointID).where {
+                    ChannelTable.endpointID eq endpointID
+                }.singleOrNull()?.let { true } ?: false
             }
-            for (query in botHookList) {
-                client.post(query.key) {
-                    contentType(ContentType.Application.Json)
-                    setBody(buildWebhookPayload(queryRes, query.value, deliverState = status))
+            if (!isValidEndpoint) return
+            val previousType = dbQuery {
+                OnAirTable.select(OnAirTable.previousState).where { OnAirTable.videoID eq videoID }.singleOrNull()
+                    ?.let { it[OnAirTable.previousState] } ?: DeliverState.ERROR
+            }
+            //main logic to notify
+            var queryRes: YtResponse.QueryData? = youtubeVideoQuery(videoID)
+            var waitPeriod = 0L
+            // 0,20,40(60)sec
+            for (i in 0..2) {
+                if (queryRes?.type != previousType || previousType == DeliverState.VIDEO.label) break
+                waitPeriod += 20.seconds.inWholeMilliseconds
+                logger.info("Retrying to query video: {} / retryTime: {} /delay: {}", videoID, i + 1, waitPeriod)
+                delay(waitPeriod)
+                youtubeVideoQuery(videoID)?.let { queryRes = it }
+            }
+            queryRes ?: return
+            val status = classifyStatusToNotify(queryRes)
+            if (status.toDeliver) {
+                val botHookList: Map<String, String> = dbQuery {
+                    (ChannelRegTable innerJoin BotRegTable)
+                        .select(BotRegTable.wsUrl, BotRegTable.mentionRoleID)
+                        .where { ChannelRegTable.channelID eq queryRes.channelID }
+                        .associate { it[BotRegTable.wsUrl] to it[BotRegTable.mentionRoleID] }
                 }
+                coroutineScope {
+                    for (query in botHookList) {
+                        launch {
+                            try {
+                                client.post(query.key) {
+                                    contentType(ContentType.Application.Json)
+                                    setBody(buildWebhookPayload(queryRes, query.value, deliverState = status))
+                                }
+                            } catch (e: Exception) {
+                                logger.error("Failed to notify webhook: ${query.key}", e)
+                            }
+                        }
+                    }
+                }
+                return
             }
-
-            return true
+            return
+        } finally {
+            // 処理が終わったら（成功しても失敗しても）リストから削除する
+            processingVideos.remove(videoID)
         }
-        return false
+
     }
 }

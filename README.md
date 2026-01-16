@@ -10,8 +10,10 @@ real-time notifications to Discord about channel livestreams and video updates.
 1. run `./gradlew buildFatJar`
 2. write config on `.API_KEY`, `.CALLBACK_ORIGIN`, `.JWT_SECRET`
 3. run `java -jar` with jar files which you built
-4. expose listenport with proxy e.g. Nginx, Cloudflare Tunnel
+4. expose listen-port with proxy e.g. Nginx, Cloudflare Tunnel
 5. enjoy!
+
+manual : [/docs/manual.md](docs/manual.md)
 
 ## Features
 
