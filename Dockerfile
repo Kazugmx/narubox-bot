@@ -1,5 +1,5 @@
 # --- build ---
-FROM eclipse-temurin:21-jdk AS builder
+FROM eclipse-temurin:25-jdk AS builder
 WORKDIR /build
 
 
@@ -15,7 +15,7 @@ RUN --mount=type=cache,target=/root/.gradle \
     ./gradlew buildFatJar --no-daemon
 
 # --- runtime ---
-FROM gcr.io/distroless/java21
+FROM gcr.io/distroless/java25
 WORKDIR /app
 COPY --from=builder /build/build/libs/*.jar app.jar
 

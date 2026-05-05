@@ -204,7 +204,7 @@ class BotService(
             return result.toHexString()
         }
 
-        if (hasRegisteredOnChannels.isAvailable || subReq.refresh) {
+        if (!hasRegisteredOnChannels.isAvailable || subReq.refresh) {
             if (hasRegisteredOnChannels.endpointID.isNullOrBlank()) {
                 hasRegisteredOnChannels.endpointID = generateEndpointId(subReq.channelID)
             }

@@ -7,7 +7,7 @@ val postgres_version: String by project
 val bcrypt_version: String by project
 
 plugins {
-    kotlin("jvm") version "2.2.20"
+    kotlin("jvm") version "2.3.0"
     id("io.ktor.plugin") version "3.3.2"
     id("org.jetbrains.kotlin.plugin.serialization") version "2.3.0"
     id("com.gradleup.shadow") version "9.2.2"
@@ -15,7 +15,7 @@ plugins {
 }
 
 kotlin{
-    jvmToolchain(21)
+    jvmToolchain(25)
 }
 
 group = "net.kazugmx.narubox-bot"
