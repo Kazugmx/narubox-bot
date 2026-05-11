@@ -1,0 +1,55 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: gradle
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ct-repo.kazugmx.net
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: ct-repo.kazugmx.net/kazunyan-light/narubox-bot:${{ github.sha }}
+          cache-from: type=registry,ref=ct-repo.kazugmx.net/kazunyan-light/narubox-bot:buildcache
+          cache-to: type=registry,ref=ct-repo.kazugmx.net/kazunyan-light/narubox-bot:buildcache,mode=max
+      - name: Update image tag in manifest
+        run: |
+          sed -i "s|image: ct-repo.kazugmx.net/kazunyan-light/narubox-bot:.*|image: ct-repo.kazugmx.net/kazunyan-light/narubox-bot:${{ github.sha }}|" k8s/deployment.yaml
+      - name: Commit updated manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add k8s/deployment.yaml
+          git commit -m "chore: update image to ${{ github.sha }} [skip ci]"
+          git push
