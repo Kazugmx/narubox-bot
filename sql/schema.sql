@@ -4,8 +4,8 @@ CREATE TABLE
         username VARCHAR(50) UNIQUE,
         mail VARCHAR(255) UNIQUE,
         password VARCHAR(100) NOT NULL,
-        createdAt DATETIME NOT NULL,
-        lastAccessAt DATETIME,
+        created_at TIMESTAMP NOT NULL,
+        last_access TIMESTAMP,
         mail_token VARCHAR(100)
     );
 
@@ -19,20 +19,19 @@ CREATE TABLE
     );
 
 CREATE TABLE
-    reg_channel (
-        channel_id VARCHAR(60) PRIMARY KEY,
-        last_update DATETIME,
-        endpoint_id VARCHAR(90) NOT NULL
-    );
-
-CREATE TABLE
     channel_bot_tags (
         id INTEGER PRIMARY KEY,
         channel_id VARCHAR(60) REFERENCES reg_channel (channel_id)
     );
 
 CREATE TABLE
-    on_air (
+    reg_channel (
+        channel_id VARCHAR(60) PRIMARY KEY,
+        last_update TIMESTAMP,
+        endpoint_id VARCHAR(90) NOT NULL
+    );
+
+    CREATE TABLE on_air(
         video_id VARCHAR(20) PRIMARY KEY,
         previous_state VARCHAR(10)
     );
