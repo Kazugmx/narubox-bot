@@ -15,29 +15,19 @@ import (
 
 func main() {
 	app := fiber.New()
-	apiRoute := app.Group("/api/v1")
 	ctx := context.Background()
+	jwtService := jwtOperator.NewJWTService(os.Getenv("JWT_SECRET"))
 
-	query, conn := initializeDatabase(ctx)
+	query, conn := initiateDatabase(ctx)
+	apiRoute := app.Group("/api/v1")
 
-	jwtOperator.InitAuth()
-
-	var greeting string
-	err := conn.QueryRow(context.Background(), "select 'Hello, world!'").Scan(&greeting)
-	if err != nil {
-		log.Fatalln("error :", err)
-	}
-
-	app.Get("/", func(c fiber.Ctx) error {
-		return c.JSON(fiber.Map{"hello": greeting})
-	})
-
-	Auth.Route(apiRoute, query, ctx)
+	Auth.Route(apiRoute, query, ctx, jwtService)
 
 	defer conn.Close()
 	log.Fatal(app.Listen(":3000"))
 }
 
+// Initiate conn with Database
 func buildDBUrl() string {
 	host := os.Getenv("DB_HOST")
 	port := os.Getenv("DB_PORT")
@@ -54,7 +44,7 @@ func buildDBUrl() string {
 	)
 }
 
-func initializeDatabase(ctx context.Context) (*db.Queries, *pgxpool.Pool) {
+func initiateDatabase(ctx context.Context) (*db.Queries, *pgxpool.Pool) {
 
 	dbUrl := buildDBUrl()
 	if dbUrl == "" {

@@ -45,3 +45,4 @@ bot_data.db
 /logs/
 docker-compose.yml
 compose-test
+test.sh
