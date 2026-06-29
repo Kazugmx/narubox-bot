@@ -19,7 +19,7 @@ kotlin{
 }
 
 group = "net.kazugmx.narubox-bot"
-version = "1.4.1"
+version = "1.4.2"
 
 application {
     mainClass = "net.kazugmx.ApplicationKt"
