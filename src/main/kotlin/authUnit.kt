@@ -25,10 +25,11 @@ fun Application.initAuthUnit() {
     val authService by inject<AuthService>()
     val securePRNG: SecureRandom by inject<SecureRandom>()
 
-    val jwtIssuer = environment.config.property("jwt.issuer").getString()
-    val jwtAudience = environment.config.property("jwt.audience").getString()
-    val jwtRealm = environment.config.property("jwt.realm").getString()
-    val envJwtSecret = environment.config.property("jwt.secret").getString()
+    val jwtIssuer = environment.config.propertyOrNull("jwt.issuer")?.getString() ?: "narubox-auth"
+    val jwtAudience = environment.config.propertyOrNull("jwt.audience")?.getString() ?: "jwt-audience"
+    val jwtRealm = environment.config.propertyOrNull("jwt.realm")?.getString() ?: "narubox-bot"
+    val envJwtSecret = environment.config.propertyOrNull("jwt.secret")?.getString()
+        ?: System.getenv("JWT_SECRET") ?: "dev-test-secret"
     val jwtSecret = if (envJwtSecret == "invalidSecret" || envJwtSecret.isBlank()) {
         log.warn("JWT Secret is not configured! Using temporarily generated secret key.")
         val genToken = ByteArray(32)

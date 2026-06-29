@@ -8,6 +8,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as clientCon
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.serialization.kotlinx.xml.*
 import io.ktor.server.application.*
+import io.ktor.server.config.ApplicationConfig
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.openapi.openAPI
 import io.ktor.server.routing.routing
@@ -41,6 +42,9 @@ fun ensureDBDirectory() {
     }
 }
 
+private fun ApplicationConfig.readString(path: String, default: String): String =
+    propertyOrNull(path)?.getString() ?: default
+
 fun initTables(db: Database) {
     transaction {
         SchemaUtils.create(UserTable)
@@ -54,10 +58,13 @@ fun initTables(db: Database) {
 
 fun Application.module() {
 
-    val envJdbcUrl = environment.config.property("db.url").getString()
+    val envJdbcUrl = environment.config.readString(
+        "db.url",
+        System.getenv("JDBC_URL") ?: "jdbc:sqlite:data/bot_data.db"
+    )
     if (envJdbcUrl == "jdbc:sqlite:data/bot_data.db") ensureDBDirectory()
-    val dbUser = environment.config.property("db.user").getString()
-    val dbPass = environment.config.property("db.password").getString()
+    val dbUser = environment.config.readString("db.user", System.getenv("DB_USER") ?: "")
+    val dbPass = environment.config.readString("db.password", System.getenv("DB_PASSWORD") ?: "")
 
     val config = HikariConfig().apply {
         jdbcUrl = envJdbcUrl
@@ -84,9 +91,18 @@ fun Application.module() {
         connectionTestQuery = "SELECT 1"
         validate()
     }
-    val apiKey = environment.config.property("youtube.apikey").getString()
-    val rootOrigin = environment.config.property("youtube.callbackOrigin").getString()
-    val uriMaster = environment.config.property("youtube.uri_master").getString()
+    val apiKey = environment.config.readString(
+        "youtube.apikey",
+        System.getenv("APIKEY") ?: "test-api-key"
+    )
+    val rootOrigin = environment.config.readString(
+        "youtube.callbackOrigin",
+        System.getenv("CALLBACK_ORIGIN") ?: "localhost"
+    )
+    val uriMaster = environment.config.readString(
+        "youtube.uri_master",
+        System.getenv("URI_MASTER") ?: "https://example.com"
+    )
     require(!(apiKey == "invalidKey" || rootOrigin == "invalidOrigin" || uriMaster == "invalidURIMaster")) {
         throw Exception("Environment arguments is invalid.")
     }
@@ -113,11 +129,11 @@ fun Application.module() {
     val botLogger = LoggerFactory.getLogger("BotService")
 
     val mailConfig = MailConfig(
-        host = environment.config.property("smtp.host").getString(),
-        port = environment.config.property("smtp.port").getString().toInt(),
-        user = environment.config.property("smtp.user").getString(),
-        pass = environment.config.property("smtp.password").getString(),
-        mailAddress = environment.config.property("smtp.mailAddress").getString()
+        host = environment.config.readString("smtp.host", System.getenv("SMTP_HOST") ?: "none"),
+        port = environment.config.readString("smtp.port", System.getenv("SMTP_PORT") ?: "-1").toInt(),
+        user = environment.config.readString("smtp.user", System.getenv("SMTP_USER") ?: "none"),
+        pass = environment.config.readString("smtp.password", System.getenv("SMTP_PASSWORD") ?: "none"),
+        mailAddress = environment.config.readString("smtp.mailAddress", System.getenv("SMTP_MAIL_ADDRESS") ?: "none")
     )
     log.info(mailConfig.host)
 
@@ -130,7 +146,7 @@ fun Application.module() {
                 isMailActive = mailConfig.host != "none",
                 mailConfig = mailConfig,
                 logger = authLogger,
-                newUser = environment.config.property("appConfig.newUser").getString().toBoolean(),
+                newUser = environment.config.readString("appConfig.newUser", System.getenv("NEW_USER") ?: "false").toBoolean(),
                 origin = rootOrigin,
                 securePRNG = get()
             )

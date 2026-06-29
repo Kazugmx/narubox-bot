@@ -14,9 +14,11 @@ paths:
         - auth
       description: User verification endpoint with mail-sent token
       parameters:
-        - name: verify
+        - name: token
           in: query
           required: true
+          schema:
+            type: string
           example: AUTH-TOKEN-1234567890
       responses:
         200:
@@ -64,7 +66,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              $ref: '#/components/schemas/UserCreateRequest'
       responses:
         201:
           description: Registration successful
@@ -79,6 +81,17 @@ paths:
       responses:
         200:
           description: Bot configuration returned successfully
+  /api/v1/bot/force:
+    get:
+      operationId: refresh subscribed channels
+      tags:
+        - app
+      description: Force-refresh all registered channel subscriptions
+      security:
+        - bearerAuth: [ ]
+      responses:
+        200:
+          description: Channel refresh completed successfully
   /api/v1/bot/register:
     description: bot registration management endpoint
     post:
@@ -276,15 +289,29 @@ tags:
 
 components:
   schemas:
+    UserCreateRequest:
+      type: object
+      required:
+        - username
+        - mail
+        - password
+      properties:
+        username:
+          type: string
+        mail:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
     LoginRequest:
       type: object
       required:
-        - email
+        - username
         - password
       properties:
-        email:
+        username:
           type: string
-          format: email
         password:
           type: string
           format: password
@@ -297,23 +324,31 @@ components:
     BotRegisterReq:
       type: object
       required:
-        - token
-        - guildId
+        - botLabel
+        - wsUrl
+        - mentionRoleID
       properties:
-        token:
+        botLabel:
           type: string
-          description: Bot token
-        guildId:
+          description: Human-readable bot label
+        wsUrl:
           type: string
-          description: Guild ID
+          description: WebSocket/webhook URL used to notify the bot
+        mentionRoleID:
+          type: string
+          description: Discord role ID or "ignore" prefix
     SubscribeRequest:
       type: object
       required:
-        - channelId
+        - channelID
       properties:
-        channelId:
+        channelID:
           type: string
           description: YouTube channel ID to subscribe
+        refresh:
+          type: boolean
+          default: false
+          description: Force a fresh subscription registration
   securitySchemes:
     bearerAuth:
       type: http

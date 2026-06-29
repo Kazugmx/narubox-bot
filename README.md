@@ -14,6 +14,7 @@ real-time notifications to Discord about channel livestreams and video updates.
 5. enjoy!
 
 manual : [/docs/manual.md](docs/manual.md)
+API reference : [/docs/api-reference.md](docs/api-reference.md)
 
 ## Features
 
