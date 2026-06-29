@@ -12,12 +12,13 @@ import (
 )
 
 const getAuthData = `-- name: GetAuthData :one
-SELECT username, password
+SELECT id, username, password
 FROM user_table
 WHERE username LIKE $1 LIMIT 1
 `
 
 type GetAuthDataRow struct {
+	ID       int32
 	Username pgtype.Text
 	Password string
 }
@@ -25,7 +26,7 @@ type GetAuthDataRow struct {
 func (q *Queries) GetAuthData(ctx context.Context, username pgtype.Text) (GetAuthDataRow, error) {
 	row := q.db.QueryRow(ctx, getAuthData, username)
 	var i GetAuthDataRow
-	err := row.Scan(&i.Username, &i.Password)
+	err := row.Scan(&i.ID, &i.Username, &i.Password)
 	return i, err
 }
 

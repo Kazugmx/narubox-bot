@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 
 	"github.com/Kazugmx/narubox-bot/db"
@@ -35,13 +36,22 @@ func buildDBUrl() string {
 	pass := os.Getenv("DB_PASS")
 	name := os.Getenv("DB_NAME")
 
-	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
+	if !(len(host) > 0) || !(len(port) > 0) || !(len(user) > 0) || !(len(pass) > 0) || !(len(name) > 0) {
+		log.Fatalln("error\t database environment variables are not set.")
+	}
+
+	dbUrl := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
 		user,
 		pass,
 		host,
 		port,
 		name,
 	)
+	_, err := url.ParseRequestURI(dbUrl)
+	if err != nil {
+		log.Fatalf("invalid dbUrl: %v\n", err)
+	}
+	return dbUrl
 }
 
 func initiateDatabase(ctx context.Context) (*db.Queries, *pgxpool.Pool) {
@@ -52,8 +62,7 @@ func initiateDatabase(ctx context.Context) (*db.Queries, *pgxpool.Pool) {
 	}
 	conn, err := pgxpool.New(ctx, dbUrl)
 	if err != nil {
-		fmt.Printf("Unable to connect to database:%v\n", err)
-		os.Exit(1)
+		log.Fatalf("Unable to connect to database: %v\n", err)
 	}
 
 	query := db.New(conn)

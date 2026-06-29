@@ -3,6 +3,7 @@ package jwtOperator
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"time"
 
@@ -24,21 +25,24 @@ func NewJWTService(secret string) *JWTService {
 
 	return &JWTService{
 		secret:   []byte(secret),
-		issuer:   "narubox-auth/",
-		origin:   "" + "bd",
+		issuer:   fmt.Sprintf("narubox-auth/%s", origin),
+		origin:   origin,
 		audience: "narubox-bot webclient/api",
 	}
 }
 
 func (j JWTService) GenerateJwtToken(userId int32) (res_token string, err error) {
-	//これどう実装したらいいんだろ
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": userId,
-		"iss": j.issuer,
-		"aud": j.audience,
-		"iat": time.Now().Unix(),
-		"exp": time.Now().Add(time.Hour * 24).Unix(),
+	//キチゲ発散モデル
+	// なにこのキチゲ発散モデルってメモは...
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
+		Issuer:    j.issuer,
+		Audience:  jwt.ClaimStrings{j.audience},
+		Subject:   fmt.Sprintf("%d", userId),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		NotBefore: jwt.NewNumericDate(time.Now()),
 	})
+	slog.Info("testtoken", slog.Any("ExpiresAt", token))
 
 	tokenStr, err := token.SignedString(j.secret)
 	if err != nil {
@@ -49,22 +53,27 @@ func (j JWTService) GenerateJwtToken(userId int32) (res_token string, err error)
 }
 
 func (j JWTService) VerifyJwtToken(chall string) (bool, error) {
-	token, err := jwt.Parse(chall, func(token *jwt.Token) (interface{}, error) {
-		return j.secret, nil
-	})
+	claims := &jwt.RegisteredClaims{}
+
+	token, err := jwt.ParseWithClaims(
+		chall, claims,
+		func(token *jwt.Token) (interface{}, error) {
+			return j.secret, nil
+		},
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithAllAudiences(j.audience),
+		jwt.WithIssuer(j.issuer),
+		jwt.WithExpirationRequired(),
+		jwt.WithNotBeforeRequired(),
+	)
 
 	if err != nil {
-		log.Printf("invalid token. error: %v", err)
-		return false, fmt.Errorf("Invalid token")
-	} else if claims, ok := token.Claims.(jwt.MapClaims); ok {
-		if time.Now().Unix() > int64(claims["exp"].(float64)) {
-			// expire check
-			return false, fmt.Errorf("Expired token.")
-		} else {
-
-			return true, nil
-		}
-	} else {
-		return false, fmt.Errorf("Failed to parse")
+		slog.Error("error parsing JWT token:", slog.Any("error", err))
+		return false, fmt.Errorf("invalid token")
 	}
+	if !token.Valid {
+		return false, fmt.Errorf("JWT Token is invalid")
+	}
+
+	return true, nil
 }

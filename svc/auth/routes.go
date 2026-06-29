@@ -2,7 +2,6 @@ package Auth
 
 import (
 	"context"
-	"log"
 
 	"github.com/Kazugmx/narubox-bot/db"
 	jwtOperator "github.com/Kazugmx/narubox-bot/internal/auth"
@@ -17,15 +16,9 @@ func Route(
 	ctx context.Context,
 	jwtEngine *jwtOperator.JWTService,
 ) {
-	log.Println("loaded AuthRoute")
-
 	authRoute := router.Group("/auth")
+	handler := NewAuthHandler(jwtEngine, query)
 
-	authRoute.Post("login", func(c fiber.Ctx) error {
-		return loginHandler(c, jwtEngine)
-	})
-
-	authRoute.Get("self", func(c fiber.Ctx) error {
-		return tokenCheckHandler(c, jwtEngine)
-	})
+	authRoute.Post("login", handler.loginHandler)
+	authRoute.Get("self", handler.tokenCheckHandler)
 }
