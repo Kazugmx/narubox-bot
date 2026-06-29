@@ -5,6 +5,8 @@ This bot uses [Google PubSubHubbub](https://pubsubhubbub.appspot.com/) and
 the [YouTube Data API](https://developers.google.com/youtube/v3) to send
 real-time notifications to Discord about channel livestreams and video updates.
 
+[![CI](https://github.com/Kazugmx/narubox-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/Kazugmx/narubox-bot/actions/workflows/ci.yml)
+
 ## Quickstart
 
 1. run `./gradlew buildFatJar`
