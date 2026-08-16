@@ -164,6 +164,7 @@ class BotService(
     }
 
     suspend fun registerChannel(botID: String, subReq: SubscribeRequest, userID: Int = -1): Boolean {
+        // add logic to validate UUID(BotID)
 
         val botID = UUID.fromString(botID)
         val channelID = subReq.channelID

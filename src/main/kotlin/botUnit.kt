@@ -126,7 +126,7 @@ fun Application.initBotUnit() {
                                 call.parameters["botID"] ?: return@tryAuth call.respond(HttpStatusCode.BadRequest)
 
                             if (bot.registerChannel(botID, req, userID)) {
-                                call.respond(HttpStatusCode.Accepted, mapOf("success" to true))
+                                return@tryAuth call.respond(HttpStatusCode.Accepted, mapOf("success" to true))
                             }
                             call.respond(HttpStatusCode.BadRequest, mapOf("success" to false))
                         }
