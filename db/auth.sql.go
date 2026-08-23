@@ -14,7 +14,7 @@ import (
 const getAuthData = `-- name: GetAuthData :one
 SELECT id, username, password
 FROM user_table
-WHERE username LIKE $1 LIMIT 1
+WHERE username = $1 LIMIT 1
 `
 
 type GetAuthDataRow struct {
@@ -33,7 +33,7 @@ func (q *Queries) GetAuthData(ctx context.Context, username pgtype.Text) (GetAut
 const getUserData = `-- name: GetUserData :one
 SELECT username, mail, password, created_at , last_access
 FROM user_table
-WHERE username LIKE $1 LIMIT 1
+WHERE username = $1 LIMIT 1
 `
 
 type GetUserDataRow struct {

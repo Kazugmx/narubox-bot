@@ -1,21 +1,15 @@
 package Auth
 
 import (
-	"context"
-	"encoding/json"
 	"log/slog"
+	"strings"
 
 	"github.com/Kazugmx/narubox-bot/db"
-	jwtOperator "github.com/Kazugmx/narubox-bot/internal/auth"
+	jwtOperator "github.com/Kazugmx/narubox-bot/svc/auth/jwt"
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
 )
-
-type AuthHandler struct {
-	jwtEngine *jwtOperator.JWTService
-	query     *db.Queries
-}
 
 func NewAuthHandler(jwtEngine *jwtOperator.JWTService, query *db.Queries) *AuthHandler {
 	return &AuthHandler{
@@ -25,19 +19,23 @@ func NewAuthHandler(jwtEngine *jwtOperator.JWTService, query *db.Queries) *AuthH
 }
 
 func (authHandler *AuthHandler) loginHandler(c fiber.Ctx) error {
-	req := c.Req().Body()
-	var login_request UserLoginPayload
-	err := json.Unmarshal(req, &login_request)
-	if err != nil {
-		slog.Error("error:", slog.Any("error", err))
-		return c.Status(fiber.ErrBadRequest.Code).JSON(fiber.Map{
+	var loginRequest UserLoginPayload
+	if err := c.Bind().Body(&loginRequest); err != nil {
+		slog.Warn("invalid login payload", slog.Any("error", err))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid Request payload.",
+		})
+	}
+	loginRequest.Username = strings.TrimSpace(loginRequest.Username)
+	if loginRequest.Username == "" || loginRequest.Password == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Username and password are required.",
 		})
 	}
 
 	challTarget, err := authHandler.query.GetAuthData(
-		context.Background(),
-		pgtype.Text{String: login_request.Username, Valid: true},
+		c.Context(),
+		pgtype.Text{String: loginRequest.Username, Valid: true},
 	)
 
 	if err != nil {
@@ -47,11 +45,9 @@ func (authHandler *AuthHandler) loginHandler(c fiber.Ctx) error {
 		})
 	}
 
-	slog.Info("chall hash", slog.String("password", challTarget.Password))
-
 	err = bcrypt.CompareHashAndPassword(
 		[]byte(challTarget.Password),
-		[]byte(login_request.Password),
+		[]byte(loginRequest.Password),
 	)
 	if err != nil {
 		slog.Error("error comparing passwords:", slog.Any("error", err))
@@ -78,14 +74,17 @@ func (authHandler *AuthHandler) tokenCheckHandler(c fiber.Ctx) error {
 		Token string `json:"token"`
 	}
 
-	req_struct := c.Body()
 	token := challToken{}
-	json.Unmarshal(req_struct, &token)
+	if err := c.Bind().Body(&token); err != nil || strings.TrimSpace(token.Token) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid Request payload.",
+		})
+	}
 
 	claims, err := authHandler.jwtEngine.VerifyJwtToken(token.Token)
 	if err != nil {
 		slog.Error("error:", slog.Any("error", err))
-		return c.Status(fiber.ErrUnauthorized.Code).JSON(fiber.Map{
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid token.",
 		})
 	}

@@ -18,6 +18,7 @@ type BotTable struct {
 
 type ChannelBotTag struct {
 	ID        int32
+	BotID     pgtype.UUID
 	ChannelID pgtype.Text
 }
 

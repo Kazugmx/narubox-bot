@@ -1,19 +1,14 @@
 package Auth
 
 import (
-	"context"
-
 	"github.com/Kazugmx/narubox-bot/db"
-	jwtOperator "github.com/Kazugmx/narubox-bot/internal/auth"
+	jwtOperator "github.com/Kazugmx/narubox-bot/svc/auth/jwt"
 	"github.com/gofiber/fiber/v3"
 )
-
-type Queries struct{}
 
 func Route(
 	router fiber.Router,
 	query *db.Queries,
-	ctx context.Context,
 	jwtEngine *jwtOperator.JWTService,
 ) {
 	authRoute := router.Group("/auth")

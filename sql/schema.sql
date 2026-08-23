@@ -1,27 +1,20 @@
-CREATE TABLE
-    user_table (
-        id INTEGER PRIMARY KEY,
-        username VARCHAR(50) UNIQUE,
-        mail VARCHAR(255) UNIQUE,
-        password VARCHAR(100) NOT NULL,
-        created_at TIMESTAMP NOT NULL,
-        last_access TIMESTAMP,
-        mail_token VARCHAR(100)
-    );
+CREATE TABLE  user_table (
+    id INTEGER PRIMARY KEY,
+    username VARCHAR(50) UNIQUE,
+    mail VARCHAR(255) UNIQUE,
+    password VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    last_access TIMESTAMP,
+    mail_token VARCHAR(100)
+);
 
 CREATE TABLE
     bot_table (
-        id uuid NOT NULL,
+        id uuid PRIMARY KEY,
         owner_id INTEGER REFERENCES user_table (id),
         label VARCHAR(50) NOT NULL,
         ws_url VARCHAR(255) NOT NULL,
         mention_role_id VARCHAR(60) NOT NULL
-    );
-
-CREATE TABLE
-    channel_bot_tags (
-        id INTEGER PRIMARY KEY,
-        channel_id VARCHAR(60) REFERENCES reg_channel (channel_id)
     );
 
 CREATE TABLE
@@ -31,7 +24,16 @@ CREATE TABLE
         endpoint_id VARCHAR(90) NOT NULL
     );
 
-    CREATE TABLE on_air(
+CREATE TABLE
+    channel_bot_tags (
+        id SERIAL PRIMARY KEY,
+        bot_id uuid NOT NULL REFERENCES bot_table (id) ON DELETE CASCADE,
+        channel_id VARCHAR(60) NOT NULL REFERENCES reg_channel (channel_id) ON DELETE CASCADE,
+        UNIQUE (bot_id, channel_id)
+    );
+
+CREATE TABLE
+    on_air(
         video_id VARCHAR(20) PRIMARY KEY,
-        previous_state VARCHAR(10)
+        previous_state VARCHAR(10) NOT NULL
     );

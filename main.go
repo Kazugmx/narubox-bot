@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
+	"net/http"
 	"net/url"
 	"os"
 
 	"github.com/Kazugmx/narubox-bot/db"
-	jwtOperator "github.com/Kazugmx/narubox-bot/internal/auth"
 	Auth "github.com/Kazugmx/narubox-bot/svc/auth"
+	"github.com/Kazugmx/narubox-bot/svc/auth/jwt"
+	"github.com/Kazugmx/narubox-bot/svc/bot"
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -17,19 +20,30 @@ import (
 func main() {
 	app := fiber.New()
 	ctx := context.Background()
-	jwtService := jwtOperator.NewJWTService(os.Getenv("JWT_SECRET"))
+	jwtService, err := jwt.NewJWTService(
+		os.Getenv("JWT_SECRET"),
+		os.Getenv("CALLBACK_ORIGIN"),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	query, conn := initiateDatabase(ctx)
+	query, conn, err := initiateDatabase(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
 	apiRoute := app.Group("/api/v1")
 
-	Auth.Route(apiRoute, query, ctx, jwtService)
+	Auth.Route(apiRoute, query, jwtService)
+	botService := bot.NewService(query, http.DefaultClient, os.Getenv("YOUTUBE_API_KEY"), os.Getenv("CALLBACK_ORIGIN"), slog.Default())
+	bot.Route(apiRoute, botService, jwtService)
 
 	defer conn.Close()
 	log.Fatal(app.Listen(":3000"))
 }
 
 // Initiate conn with Database
-func buildDBUrl() string {
+func buildDBURL() (string, error) {
 	host := os.Getenv("DB_HOST")
 	port := os.Getenv("DB_PORT")
 	user := os.Getenv("DB_USER")
@@ -37,35 +51,34 @@ func buildDBUrl() string {
 	name := os.Getenv("DB_NAME")
 
 	if !(len(host) > 0) || !(len(port) > 0) || !(len(user) > 0) || !(len(pass) > 0) || !(len(name) > 0) {
-		log.Fatalln("error\t database environment variables are not set.")
+		return "", fmt.Errorf("database environment variables are not set")
 	}
 
-	dbUrl := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
-		user,
-		pass,
-		host,
-		port,
-		name,
-	)
-	_, err := url.ParseRequestURI(dbUrl)
-	if err != nil {
-		log.Fatalf("invalid dbUrl: %v\n", err)
+	dbURL := url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(user, pass),
+		Host:   fmt.Sprintf("%s:%s", host, port),
+		Path:   name,
 	}
-	return dbUrl
+	if _, err := url.ParseRequestURI(dbURL.String()); err != nil {
+		return "", fmt.Errorf("invalid database URL: %w", err)
+	}
+	return dbURL.String(), nil
 }
 
-func initiateDatabase(ctx context.Context) (*db.Queries, *pgxpool.Pool) {
-
-	dbUrl := buildDBUrl()
-	if dbUrl == "" {
-		log.Fatalln("[ERROR] env:DATABASE_URL is empty.")
-	}
-	conn, err := pgxpool.New(ctx, dbUrl)
+func initiateDatabase(ctx context.Context) (*db.Queries, *pgxpool.Pool, error) {
+	dbURL, err := buildDBURL()
 	if err != nil {
-		log.Fatalf("Unable to connect to database: %v\n", err)
+		return nil, nil, err
+	}
+	conn, err := pgxpool.New(ctx, dbURL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create database pool: %w", err)
+	}
+	if err := conn.Ping(ctx); err != nil {
+		conn.Close()
+		return nil, nil, fmt.Errorf("connect to database: %w", err)
 	}
 
-	query := db.New(conn)
-
-	return query, conn
+	return db.New(conn), conn, nil
 }
