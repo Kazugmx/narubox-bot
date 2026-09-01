@@ -6,6 +6,12 @@ WHERE id = $1 LIMIT 1;
 SELECT * FROM users
 WHERE username = $1 LIMIT 1;
 
+-- name: GetPassHashByUsername :one
+SELECT id, password_hash FROM users
+WHERE
+    username = $1 OR
+    email = $1;
+
 -- name: CreateUser :one
 INSERT INTO users (
     username, email, password_hash

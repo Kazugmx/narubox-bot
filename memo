@@ -11,8 +11,8 @@
   * DELETE /{bot_id}
     - /{bot_id}/channels
       * GET    /
-      * POST   /
-      * DELETE /channel_id
+      * POST   /{channel_id}
+      * DELETE /{channel_id}
 - /feeds/{endpoint_id}
   * GET
   * POST

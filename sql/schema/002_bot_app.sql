@@ -7,7 +7,7 @@ CREATE TABLE "bot_instances" (
 
 CREATE TABLE "channels" (
   "channel_id" text UNIQUE PRIMARY KEY CHECK (char_length(channel_id) BETWEEN 3 AND 32),
-  "endpoint_id" bigint UNIQUE NOT NULL
+  "endpoint_id" uuid UNIQUE NOT NULL
 );
 
 CREATE TABLE "bot_subscriptions" (

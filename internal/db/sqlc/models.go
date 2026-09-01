@@ -5,11 +5,12 @@
 package db
 
 import (
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type BotInstance struct {
-	ID        pgtype.UUID
+	ID        uuid.UUID
 	UserID    int64
 	Name      string
 	CreatedAt pgtype.Timestamptz
@@ -22,11 +23,11 @@ type BotSubscription struct {
 
 type Channel struct {
 	ChannelID  string
-	EndpointID int64
+	EndpointID uuid.UUID
 }
 
 type User struct {
-	ID           pgtype.UUID
+	ID           uuid.UUID
 	Username     string
 	Email        string
 	PasswordHash string

@@ -8,7 +8,7 @@ package db
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 )
 
 const createUser = `-- name: CreateUser :one
@@ -44,9 +44,28 @@ const deleteUser = `-- name: DeleteUser :exec
 DELETE FROM users WHERE id = $1
 `
 
-func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) error {
+func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteUser, id)
 	return err
+}
+
+const getPassHashByUsername = `-- name: GetPassHashByUsername :one
+SELECT id, password_hash FROM users
+WHERE
+    username = $1 OR
+    email = $1
+`
+
+type GetPassHashByUsernameRow struct {
+	ID           uuid.UUID
+	PasswordHash string
+}
+
+func (q *Queries) GetPassHashByUsername(ctx context.Context, username string) (GetPassHashByUsernameRow, error) {
+	row := q.db.QueryRow(ctx, getPassHashByUsername, username)
+	var i GetPassHashByUsernameRow
+	err := row.Scan(&i.ID, &i.PasswordHash)
+	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
@@ -54,7 +73,7 @@ SELECT id, username, email, password_hash, created_at, last_login FROM users
 WHERE id = $1 LIMIT 1
 `
 
-func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
+func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByID, id)
 	var i User
 	err := row.Scan(
