@@ -1,0 +1,31 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+/bin/
+/dist/
+*.exe
+*.out
+
+# Test and coverage
+coverage.out
+coverage.html
+*.test
+
+# Temporary files
+/tmp/
+/.cache/
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/settings.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local scripts
+runner.sh

@@ -2,17 +2,29 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"runtime"
 
 	"github.com/alexedwards/argon2id"
 	"github.com/gofiber/fiber/v3"
-	googleuuid "github.com/google/uuid"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kazugmx/narubox-bot/internal/auth/pass"
 	argon2Sv "github.com/kazugmx/narubox-bot/internal/auth/pass/argon2"
 	db "github.com/kazugmx/narubox-bot/internal/db/sqlc"
 	"github.com/kazugmx/narubox-bot/internal/misc"
 )
+
+func JSONRequired(c fiber.Ctx) error {
+	if !c.Is("json") {
+		return c.Status(fiber.StatusUnsupportedMediaType).JSON(fiber.Map{
+			"error": "content-type must be application/json",
+		})
+	}
+	return nil
+}
 
 func NewAuthHandler(pool *pgxpool.Pool) *AuthHandler {
 	queries := db.New(pool)
@@ -37,8 +49,6 @@ func NewAuthHandler(pool *pgxpool.Pool) *AuthHandler {
 }
 
 func (authHandler *AuthHandler) loginHandler(c fiber.Ctx) error {
-	c.AcceptsJSON()
-
 	ctx := c.Context()
 	var request LoginRequestPayload
 	if err := json.Unmarshal(c.Req().Body(), &request); err != nil {
@@ -48,28 +58,126 @@ func (authHandler *AuthHandler) loginHandler(c fiber.Ctx) error {
 	}
 
 	userRecord, err := authHandler.query.GetPassHashByUsername(ctx, request.Username)
+	found := true
 
-	if err != nil {
-		slog.Info("Failed login", "usertarget", request.Username)
-		dummyID := googleuuid.MustParse("01a05f1d-97c7-7586-8aaf-12877db2df4b")
+	// handle missing credentials
+	if errors.Is(err, pgx.ErrNoRows) {
+		found = false
 
 		userRecord = db.GetPassHashByUsernameRow{
-			ID:           dummyID,
+			ID:           uuid.Nil,
 			PasswordHash: authHandler.dummyHash,
 		}
-	} else {
+	} else if err != nil {
+		slog.Error("failed to query authentication data", "error", err)
+
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "internal server error",
+		})
 	}
 
-	userID := userRecord.ID.String()
+	// execute verification
+	isSuccess := pass.Verify(
+		request.Password,
+		userRecord.PasswordHash,
+		authHandler.argon2sv,
+	)
 
-	_ = userID
-	return c.Status(fiber.ErrForbidden.Code).JSON(fiber.Map{
-		"error": "challenge failed",
+	if !(isSuccess.OK && found) {
+		slog.Info("failed for login challenge", "targetUser", request.Username)
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "challenge failed",
+		})
+	}
+
+	// update password
+	if isSuccess.NewHash != nil {
+		if err := authHandler.query.UpdatePassword(ctx, db.UpdatePasswordParams{
+			ID:           userRecord.ID,
+			PasswordHash: *isSuccess.NewHash,
+		}); err != nil {
+			slog.Error("failed to alter passHash with argon2id", "error", err)
+		}
+	}
+
+	// return success w/jwt,cookie
+	//TODO: implement jwt generation logic
+	var token string
+	token = "TODO_implementJWTLogic"
+
+	if err := authHandler.query.UpdateLoginTime(ctx, userRecord.ID); err != nil {
+		slog.Error("failed to update login time", "error", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "internal server error",
+		})
+	}
+
+	slog.Info("passed login challenge", "targetUser", request.Username)
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"ok":    "login success",
+		"token": token,
 	})
 }
 
 func (authHandler *AuthHandler) registerHandler(c fiber.Ctx) error {
-	return misc.NotImplemented(c)
+	if err := JSONRequired(c); err != nil {
+		return err
+	}
+
+	var request RegistrationRequestPayload
+	if err := json.Unmarshal(c.Req().Body(), &request); err != nil {
+		return JSONRequired(c)
+	}
+
+	if request.Username == "" ||
+		request.MailAddress == "" ||
+		request.Password == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "missing_required_fields",
+		})
+	}
+
+	slog.Info("debug message for register", "payload", request)
+
+	if !pass.ValidateMailAddressRule(request.MailAddress) {
+		slog.Info("debug message", "mail", pass.ValidateMailAddressRule(request.MailAddress))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "mailaddress_format_violation",
+		})
+	}
+
+	if !pass.ValidatePasswordRule(request.Password) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "password_policy_violation",
+		})
+	}
+
+	hash, err := authHandler.argon2sv.GenerateHash(request.Password)
+	if err != nil {
+		slog.Error("failed to generate passHash with Argon2id", "error", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "internal server error.",
+		})
+	}
+
+	// upcoming data
+	userData, err := authHandler.query.CreateUser(c.Context(), db.CreateUserParams{
+		Username:     request.Username,
+		Email:        request.MailAddress,
+		PasswordHash: hash,
+	})
+	if err != nil {
+		slog.Error("failed user registration", "error", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "internal server error.",
+		})
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"status":   "ok",
+		"userID":   userData.ID.String(),
+		"username": userData.Email,
+	})
+
 }
 
 func (authHandler *AuthHandler) verifyHandler(c fiber.Ctx) error {

@@ -1,8 +1,9 @@
 CREATE TABLE "bot_instances" (
   "id" uuid PRIMARY KEY,
-  "user_id" BIGINT NOT NULL,
+  "user_id" uuid NOT NULL,
   "name" text NOT NULL,
-  "created_at" TIMESTAMPTZ NOT NULL DEFAULT (NOW())
+  "created_at" TIMESTAMPTZ NOT NULL DEFAULT (NOW()),
+  "target_hook" text NOT NULL
 );
 
 CREATE TABLE "channels" (

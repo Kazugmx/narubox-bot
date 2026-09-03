@@ -23,12 +23,12 @@ RETURNING *;
 -- name: UpdatePassword :exec
 UPDATE users
     set password_hash = $2
-WHERE $1;
+WHERE id = $1;
 
 -- name: UpdateLoginTime :exec
 UPDATE users
 SET last_login = NOW()
-WHERE $1;
+WHERE id = $1;
 
 -- name: DeleteUser :exec
 DELETE FROM users WHERE id = $1;

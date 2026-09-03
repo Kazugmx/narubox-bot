@@ -109,26 +109,26 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 const updateLoginTime = `-- name: UpdateLoginTime :exec
 UPDATE users
 SET last_login = NOW()
-WHERE $1
+WHERE id = $1
 `
 
-func (q *Queries) UpdateLoginTime(ctx context.Context, dollar_1 interface{}) error {
-	_, err := q.db.Exec(ctx, updateLoginTime, dollar_1)
+func (q *Queries) UpdateLoginTime(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, updateLoginTime, id)
 	return err
 }
 
 const updatePassword = `-- name: UpdatePassword :exec
 UPDATE users
     set password_hash = $2
-WHERE $1
+WHERE id = $1
 `
 
 type UpdatePasswordParams struct {
-	Column1      interface{}
+	ID           uuid.UUID
 	PasswordHash string
 }
 
 func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) error {
-	_, err := q.db.Exec(ctx, updatePassword, arg.Column1, arg.PasswordHash)
+	_, err := q.db.Exec(ctx, updatePassword, arg.ID, arg.PasswordHash)
 	return err
 }

@@ -10,10 +10,11 @@ import (
 )
 
 type BotInstance struct {
-	ID        uuid.UUID
-	UserID    int64
-	Name      string
-	CreatedAt pgtype.Timestamptz
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Name       string
+	CreatedAt  pgtype.Timestamptz
+	TargetHook string
 }
 
 type BotSubscription struct {

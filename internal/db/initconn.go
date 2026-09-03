@@ -3,18 +3,12 @@ package db
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func InitPool(ctx context.Context) (*pgxpool.Pool, error) {
-	dbUrl := os.Getenv("DATABASE_URL")
-	if dbUrl == "" {
-		return nil, fmt.Errorf("DATABASE_URL is not set")
-	}
-
-	cfg, err := pgxpool.ParseConfig(dbUrl)
+func InitPool(ctx context.Context, dbURL string) (*pgxpool.Pool, error) {
+	cfg, err := pgxpool.ParseConfig(dbURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid DATABASE_URL: %w", err)
 	}
