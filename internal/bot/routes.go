@@ -3,10 +3,11 @@ package bot
 import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kazugmx/narubox-bot/internal/auth/jwt"
 )
 
 func Route(
-	router fiber.Router, pool *pgxpool.Pool,
+	router fiber.Router, pool *pgxpool.Pool, jwtService *jwt.Service,
 ) {
 	handler := NewBotHandler(pool)
 
@@ -15,7 +16,7 @@ func Route(
 	feeds.Get("/:endpoint_id", handler.FeedVerifyHandler)
 	feeds.Post("/:endpoint_id", handler.FeedDeliveryHandler)
 
-	bots := router.Group("/bots")
+	bots := router.Group("/bots", jwtService.AuthMiddleware)
 	bots.Get("/:bot_id", handler.GetBotWithIDHandler)
 	bots.Post("/", handler.CreateBotHandler)
 	bots.Delete("/:bot_id", handler.DeleteBotHandler)

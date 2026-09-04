@@ -1,0 +1,18 @@
+### Request for UserRegistration
+POST http://localhost:3000/api/v1/auth/register
+Content-Type: Application/JSON
+
+{
+  "username": "kazu_test",
+  "mailaddr": "kazu@invalid.invalid",
+  "password": "delta@Abc2"
+}
+
+### Login Request
+POST http://localhost:3000/api/v1/auth/login
+Content-Type: Application/JSON
+
+{
+  "username": "kazu@invalid.invalid",
+  "password": "delta@Abc2"
+}

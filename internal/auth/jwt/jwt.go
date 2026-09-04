@@ -2,21 +2,19 @@ package jwt
 
 import (
 	"errors"
+	"strings"
 	"time"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/kazugmx/narubox-bot/internal/config"
 )
 
-type service struct {
+type Service struct {
 	JWTSecret          []byte
 	JWTIssuer          string
 	ValidSigningMethod []string
-}
-
-type ServiceConfig struct {
-	JWTSecret string
-	JWTIssuer string
 }
 
 type Claims struct {
@@ -24,15 +22,17 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-func NewJWTService(s *ServiceConfig) *service {
-	return &service{
+const claimsKey = "claims"
+
+func NewJWTService(s *config.AppConfig) *Service {
+	return &Service{
 		JWTIssuer:          s.JWTIssuer,
 		JWTSecret:          []byte(s.JWTSecret),
 		ValidSigningMethod: []string{jwt.SigningMethodHS256.Alg()},
 	}
 }
 
-func (s *service) GenerateToken(userID uuid.UUID) (string, error) {
+func (s *Service) GenerateToken(userID uuid.UUID) (string, error) {
 	currentTime := time.Now()
 	claims := Claims{
 		UserID:    userID,
@@ -47,7 +47,7 @@ func (s *service) GenerateToken(userID uuid.UUID) (string, error) {
 	return token.SignedString([]byte(s.JWTSecret))
 }
 
-func (s *service) VerifyToken(tok string) (*Claims, error) {
+func (s *Service) VerifyToken(tok string) (*Claims, error) {
 	keyFunc := func(t *jwt.Token) (any, error) {
 		return []byte(s.JWTSecret), nil
 	}
@@ -56,7 +56,7 @@ func (s *service) VerifyToken(tok string) (*Claims, error) {
 		tok,
 		&Claims{},
 		keyFunc,
-		jwt.WithIssuer(string(s.JWTIssuer)),
+		jwt.WithIssuer(s.JWTIssuer),
 		jwt.WithExpirationRequired(),
 		jwt.WithValidMethods(s.ValidSigningMethod),
 	)
@@ -70,4 +70,38 @@ func (s *service) VerifyToken(tok string) (*Claims, error) {
 	}
 
 	return claims, nil
+}
+
+func (s *Service) AuthMiddleware(c fiber.Ctx) error {
+	unauthorized := func() error {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"status":  "unauthorized",
+			"message": "invalid authorization header",
+		})
+	}
+	header := c.Get("Authorization")
+
+	const prefix = "Bearer "
+	if !strings.HasPrefix(header, prefix) {
+		return unauthorized()
+	}
+
+	token := strings.TrimPrefix(header, prefix)
+
+	if len(header) == 0 {
+		return unauthorized()
+	}
+
+	claims, err := s.VerifyToken(token)
+	if err != nil {
+		return unauthorized()
+	}
+
+	c.Locals(claimsKey, claims)
+	return c.Next()
+}
+
+func GetClaims(c fiber.Ctx) (*Claims, bool) {
+	claims, ok := c.Locals("claims").(*Claims)
+	return claims, ok
 }

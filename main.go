@@ -12,6 +12,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/kazugmx/narubox-bot/internal/auth"
+	"github.com/kazugmx/narubox-bot/internal/auth/jwt"
 	"github.com/kazugmx/narubox-bot/internal/bot"
 	"github.com/kazugmx/narubox-bot/internal/config"
 	database "github.com/kazugmx/narubox-bot/internal/db"
@@ -20,7 +21,7 @@ import (
 type AppConfig = config.AppConfig
 
 func main() {
-	//initialize requirements
+	// initialize requirements
 	logger := initLogger()
 
 	if err := run(); err != nil {
@@ -38,7 +39,7 @@ func run() error {
 		return err
 	}
 
-	//database init
+	// database init
 	pool, err := database.InitPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return fmt.Errorf("initialize database :%w", err)
@@ -52,11 +53,14 @@ func run() error {
 	app := fiber.New()
 	apiEndpoint := app.Group("/api/v1")
 
-	//initialize routes
-	auth.Route(apiEndpoint, pool)
-	bot.Route(apiEndpoint, pool)
+	// initialize jwt engine
+	jwtEngine := jwt.NewJWTService(cfg)
 
-	go func() { //goroutineなんもわからん
+	// initialize routes
+	auth.Route(apiEndpoint, pool, jwtEngine)
+	bot.Route(apiEndpoint, pool, jwtEngine)
+
+	go func() { // goroutineなんもわからん
 		<-ctx.Done()
 		slog.Info("shutdown signal received")
 

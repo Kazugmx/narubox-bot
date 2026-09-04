@@ -11,22 +11,29 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kazugmx/narubox-bot/internal/auth/jwt"
 	"github.com/kazugmx/narubox-bot/internal/auth/pass"
 	argon2Sv "github.com/kazugmx/narubox-bot/internal/auth/pass/argon2"
 	db "github.com/kazugmx/narubox-bot/internal/db/sqlc"
 	"github.com/kazugmx/narubox-bot/internal/misc"
 )
 
-func JSONRequired(c fiber.Ctx) error {
+func JSONRequired(c fiber.Ctx, t any) error {
 	if !c.Is("json") {
 		return c.Status(fiber.StatusUnsupportedMediaType).JSON(fiber.Map{
 			"error": "content-type must be application/json",
 		})
 	}
+
+	if err := json.Unmarshal(c.Req().Body(), t); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid request body",
+		})
+	}
 	return nil
 }
 
-func NewAuthHandler(pool *pgxpool.Pool) *AuthHandler {
+func NewAuthHandler(pool *pgxpool.Pool, jwtService *jwt.Service) *Handler {
 	queries := db.New(pool)
 	params := &argon2id.Params{
 		Memory:      64 * 1024,
@@ -41,14 +48,15 @@ func NewAuthHandler(pool *pgxpool.Pool) *AuthHandler {
 		params,
 	)
 
-	return &AuthHandler{
-		query:     queries,
-		argon2sv:  argon2Sv.NewArgon2Service(params),
-		dummyHash: dummyHash,
+	return &Handler{
+		query:      queries,
+		argon2sv:   argon2Sv.NewArgon2Service(params),
+		dummyHash:  dummyHash,
+		jwtService: jwtService,
 	}
 }
 
-func (authHandler *AuthHandler) loginHandler(c fiber.Ctx) error {
+func (authHandler *Handler) loginHandler(c fiber.Ctx) error {
 	ctx := c.Context()
 	var request LoginRequestPayload
 	if err := json.Unmarshal(c.Req().Body(), &request); err != nil {
@@ -101,7 +109,7 @@ func (authHandler *AuthHandler) loginHandler(c fiber.Ctx) error {
 	}
 
 	// return success w/jwt,cookie
-	//TODO: implement jwt generation logic
+	// TODO: implement jwt generation logic
 	var token string
 	token = "TODO_implementJWTLogic"
 
@@ -114,19 +122,16 @@ func (authHandler *AuthHandler) loginHandler(c fiber.Ctx) error {
 
 	slog.Info("passed login challenge", "targetUser", request.Username)
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"ok":    "login success",
-		"token": token,
+		"status":  "ok",
+		"message": "login success",
+		"token":   token,
 	})
 }
 
-func (authHandler *AuthHandler) registerHandler(c fiber.Ctx) error {
-	if err := JSONRequired(c); err != nil {
-		return err
-	}
-
+func (authHandler *Handler) registerHandler(c fiber.Ctx) error {
 	var request RegistrationRequestPayload
-	if err := json.Unmarshal(c.Req().Body(), &request); err != nil {
-		return JSONRequired(c)
+	if err := JSONRequired(c, &request); err != nil {
+		return err
 	}
 
 	if request.Username == "" ||
@@ -172,18 +177,20 @@ func (authHandler *AuthHandler) registerHandler(c fiber.Ctx) error {
 			"error": "internal server error.",
 		})
 	}
+
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"status":   "ok",
 		"userID":   userData.ID.String(),
-		"username": userData.Email,
+		"username": userData.Username,
 	})
 
 }
 
-func (authHandler *AuthHandler) verifyHandler(c fiber.Ctx) error {
+func (authHandler *Handler) verifyHandler(c fiber.Ctx) error {
+	jwt.GetClaims(c)
 	return misc.NotImplemented(c)
 }
 
-func (authHandler *AuthHandler) getSelfHandler(c fiber.Ctx) error {
+func (authHandler *Handler) getSelfHandler(c fiber.Ctx) error {
 	return misc.NotImplemented(c)
 }
